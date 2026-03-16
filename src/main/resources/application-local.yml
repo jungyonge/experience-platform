@@ -24,7 +24,7 @@ jwt:
 
 crawling:
   enabled: true
-  mock-enabled: true
+  mock-enabled: false
   schedule-cron: "0 0 * * * *"
   max-pages-per-site: 5
   delay-min-ms: 1000
