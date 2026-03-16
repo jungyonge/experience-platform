@@ -14,11 +14,16 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class GangnamCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(GangnamCrawler.class);
+    private static final Pattern ID_PATTERN = Pattern.compile("id=(\\d+)");
+    private static final Pattern DAYS_LEFT_PATTERN = Pattern.compile("(\\d+)일\\s*남음");
+    private static final Pattern RECRUIT_PATTERN = Pattern.compile("모집\\s*(\\d+)");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
@@ -49,7 +54,7 @@ public class GangnamCrawler implements CampaignCrawler {
     private List<CrawledCampaign> crawlReal(CrawlingSource source) {
         String baseUrl = source.getBaseUrl();
 
-        if (!robotsTxtChecker.isAllowed(baseUrl, "/campaign")) {
+        if (!robotsTxtChecker.isAllowed(baseUrl, "/theme/go/")) {
             log.warn("GANGNAM robots.txt에 의해 크롤링이 차단되었습니다.");
             return List.of();
         }
@@ -59,7 +64,7 @@ public class GangnamCrawler implements CampaignCrawler {
             try {
                 String url = buildPageUrl(source, page);
                 Document doc = jsoupClient.fetch(url);
-                Elements items = doc.select(".campaign-item, .card, article");
+                Elements items = doc.select("li:has(a[href*=/cp/?id=])");
                 if (items.isEmpty()) break;
 
                 for (Element item : items) {
@@ -88,25 +93,98 @@ public class GangnamCrawler implements CampaignCrawler {
 
     public CrawledCampaign parseItem(Element item, CrawlingSource source) {
         String baseUrl = source.getBaseUrl();
-        String title = item.select("h3, .title, .name").text().trim();
-        String originalId = item.select("a[href]").attr("href").replaceAll(".*/(\\d+).*", "$1");
-        String originalUrl = item.select("a[href]").attr("abs:href");
-        if (title.isEmpty() || originalId.isEmpty()) return null;
 
-        String thumbnailUrl = item.select("img").attr("abs:src");
-        String description = item.select(".description, .desc, p").text().trim();
-        String categoryText = item.select(".category, .badge").text();
-        String recruitText = item.select(".recruit, .number").text();
-        String dateText = item.select(".date, .deadline").text();
+        // Extract originalId from href containing /cp/?id=
+        Element idLink = item.selectFirst("a[href*=/cp/?id=]");
+        if (idLink == null) return null;
+
+        String href = idLink.attr("href");
+        Matcher idMatcher = ID_PATTERN.matcher(href);
+        if (!idMatcher.find()) return null;
+        String originalId = idMatcher.group(1);
+
+        // Title: <a> with /cp/?id= link that has text content
+        String title = null;
+        Elements cpLinks = item.select("a[href*=/cp/?id=]");
+        for (Element link : cpLinks) {
+            String text = link.ownText().trim();
+            if (!text.isEmpty()) {
+                title = text;
+                break;
+            }
+        }
+        if (title == null || title.isEmpty()) return null;
+
+        // Thumbnail: img src with https: prefix for protocol-relative URLs
+        String thumbnailUrl = null;
+        Element img = item.selectFirst("img");
+        if (img != null) {
+            String src = img.attr("src");
+            if (src.startsWith("//")) {
+                thumbnailUrl = "https:" + src;
+            } else if (!src.isEmpty()) {
+                thumbnailUrl = src;
+            }
+        }
+
+        // Original URL
+        String originalUrl = baseUrl + href;
+
+        // Badge/span text for status, mission, deadline
+        String badgeText = "";
+        Element badge = item.selectFirst("span");
+        if (badge != null) {
+            badgeText = badge.text();
+        }
+
+        // Status: "남음" in badge means RECRUITING
+        CampaignStatus status = badgeText.contains("남음")
+                ? CampaignStatus.RECRUITING : CampaignStatus.CLOSED;
+
+        // Apply end date: "N일 남음" → LocalDate.now().plusDays(N)
+        LocalDate applyEndDate = null;
+        Matcher daysMatcher = DAYS_LEFT_PATTERN.matcher(badgeText);
+        if (daysMatcher.find()) {
+            int days = Integer.parseInt(daysMatcher.group(1));
+            applyEndDate = LocalDate.now().plusDays(days);
+        }
+
+        // Mission: based on badge text
+        String mission = badgeText.contains("방문형")
+                ? "방문 체험 후 블로그 리뷰" : "블로그 리뷰";
+
+        // Reward: first <div> text
+        String reward = null;
+        Element firstDiv = item.selectFirst("div");
+        if (firstDiv != null) {
+            String divText = firstDiv.text().trim();
+            if (!divText.isEmpty()) {
+                reward = divText;
+            }
+        }
+
+        // Recruit count: from div containing "모집"
+        Integer recruitCount = null;
+        Elements divs = item.select("div");
+        for (Element div : divs) {
+            String divText = div.text();
+            if (divText.contains("모집")) {
+                Matcher recruitMatcher = RECRUIT_PATTERN.matcher(divText);
+                if (recruitMatcher.find()) {
+                    recruitCount = Integer.parseInt(recruitMatcher.group(1));
+                }
+                break;
+            }
+        }
 
         return new CrawledCampaign(
-                source.getCode(), originalId, title, description, null,
-                thumbnailUrl.isEmpty() ? null : thumbnailUrl,
-                originalUrl.isEmpty() ? baseUrl + "/campaign/" + originalId : originalUrl,
-                CategoryMapper.map(categoryText), CampaignStatus.RECRUITING,
-                CrawlingNumberParser.parse(recruitText),
-                null, CrawlingDateParser.parse(dateText), null,
-                null, null, null, null
+                source.getCode(), originalId, title, null, null,
+                thumbnailUrl,
+                originalUrl,
+                CampaignCategory.FOOD, status,
+                recruitCount,
+                null, applyEndDate, null,
+                reward, mission, null, null
         );
     }
 

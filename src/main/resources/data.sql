@@ -2,7 +2,7 @@
 INSERT INTO crawling_sources (code, name, base_url, list_url_pattern, description, crawler_type, active, display_order, created_at, updated_at) VALUES
 ('REVU', '레뷰', 'https://www.revu.net', 'https://www.revu.net/campaign/list?page={page}', '레뷰 체험단 플랫폼', 'REVU', true, 1, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('MBLE', '미블', 'https://www.mble.xyz', 'https://www.mble.xyz/campaign?page={page}', '미블 체험단 플랫폼', 'MBLE', true, 2, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-('GANGNAM', '강남맛집', 'https://www.gangnammatzip.com', 'https://www.gangnammatzip.com/campaign?page={page}', '강남맛집 체험단 플랫폼', 'GANGNAM', true, 3, '2026-03-01 00:00:00', '2026-03-01 00:00:00');
+('GANGNAM', '강남맛집', 'https://xn--939au0g4vj8sq.net', 'https://xn--939au0g4vj8sq.net/theme/go/_list_cmp_tpl.php?ca=20&local_1=%EC%A0%84%EC%B2%B4&local_2=%EC%84%9C%EC%9A%B8&rpage={page}&row_num=28', '강남맛집 체험단 플랫폼', 'GANGNAM', true, 3, '2026-03-01 00:00:00', '2026-03-01 00:00:00');
 
 -- Campaign seed data (60건)
 -- crawling_source_id: 1=REVU, 2=MBLE, 3=GANGNAM

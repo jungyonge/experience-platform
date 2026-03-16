@@ -23,7 +23,7 @@ jwt:
   refresh-token-expiry: 604800000
 
 crawling:
-  enabled: false
+  enabled: true
   mock-enabled: true
   schedule-cron: "0 0 * * * *"
   max-pages-per-site: 5
