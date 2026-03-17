@@ -32,3 +32,6 @@ crawling:
   connection-timeout-ms: 10000
   read-timeout-ms: 30000
   user-agent: "ExperiencePlatformBot/1.0 (+https://example.com/bot)"
+  reve-api-token: ${REVE_API_TOKEN:}
+  reve-username: ${REVE_USERNAME:qjsro1204@naver.com}
+  reve-password: ${REVE_PASSWORD:Wjddyd!0619}

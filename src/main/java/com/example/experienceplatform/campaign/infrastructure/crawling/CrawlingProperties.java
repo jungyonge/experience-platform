@@ -16,6 +16,9 @@ public class CrawlingProperties {
     private int connectionTimeoutMs;
     private int readTimeoutMs;
     private String userAgent;
+    private String reveApiToken;
+    private String reveUsername;
+    private String revePassword;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -35,4 +38,10 @@ public class CrawlingProperties {
     public void setReadTimeoutMs(int readTimeoutMs) { this.readTimeoutMs = readTimeoutMs; }
     public String getUserAgent() { return userAgent; }
     public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
+    public String getReveApiToken() { return reveApiToken; }
+    public void setReveApiToken(String reveApiToken) { this.reveApiToken = reveApiToken; }
+    public String getReveUsername() { return reveUsername; }
+    public void setReveUsername(String reveUsername) { this.reveUsername = reveUsername; }
+    public String getRevePassword() { return revePassword; }
+    public void setRevePassword(String revePassword) { this.revePassword = revePassword; }
 }
