@@ -31,7 +31,7 @@ INSERT INTO crawling_sources (code, name, base_url, list_url_pattern, descriptio
 ('BLOGDEX', '블덱스', 'https://blogdexreview.space', NULL, '블덱스 체험단 플랫폼', 'BLOGDEX', true, 29, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('BLOGLAB', '블로그랩', 'https://bloglab.kr', NULL, '블로그랩 체험단 플랫폼', 'BLOGLAB', true, 30, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('COMETOPLAY', '놀러와체험단', 'https://cometoplay.kr', NULL, '놀러와체험단 플랫폼', 'COMETOPLAY', true, 31, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-('DAILYVIEW', '데일리뷰', 'https://dailyview.me', NULL, '데일리뷰 체험단 플랫폼', 'DAILYVIEW', true, 32, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
+('DAILYVIEW', '데일리뷰', 'https://dailyview.kr', NULL, '데일리뷰 체험단 플랫폼 (tanzsoft)', 'DAILYVIEW', true, 32, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('DDOK', '똑똑체험단', 'https://ddok.co.kr', NULL, '똑똑체험단 플랫폼', 'DDOK', true, 33, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('GABOJA', '가보자체험단', 'https://gaboja.com', NULL, '가보자체험단 플랫폼', 'GABOJA', true, 34, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('GUGUDAS', '구구다스', 'https://99das.com', NULL, '구구다스 체험단 플랫폼', 'GUGUDAS', true, 35, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),

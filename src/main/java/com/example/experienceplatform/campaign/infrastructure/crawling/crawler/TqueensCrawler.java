@@ -1,0 +1,184 @@
+package com.example.experienceplatform.campaign.infrastructure.crawling.crawler;
+
+import com.example.experienceplatform.campaign.domain.CampaignCategory;
+import com.example.experienceplatform.campaign.domain.CampaignStatus;
+import com.example.experienceplatform.campaign.domain.CrawlingSource;
+import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Component
+public class TqueensCrawler implements CampaignCrawler {
+
+    private static final Logger log = LoggerFactory.getLogger(TqueensCrawler.class);
+    private static final String API_URL = "https://tqueens.net/taste/taste_list";
+    private static final String BASE_URL = "https://tqueens.net";
+    private static final Pattern ID_PATTERN = Pattern.compile("/taste/(\\d+)");
+    private static final Pattern DDAY_PATTERN = Pattern.compile("D-(\\d+)");
+
+    private final CrawlingProperties properties;
+    private final CrawlingDelayHandler delayHandler;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+
+    public TqueensCrawler(CrawlingProperties properties, CrawlingDelayHandler delayHandler,
+                          ObjectMapper objectMapper) {
+        this.properties = properties;
+        this.delayHandler = delayHandler;
+        this.objectMapper = objectMapper;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+    }
+
+    @Override
+    public String getCrawlerType() {
+        return "TQUEENS";
+    }
+
+    @Override
+    public List<CrawledCampaign> crawl(CrawlingSource source) {
+        if (properties.isMockEnabled()) {
+            return generateMockData(source);
+        }
+        return crawlReal(source);
+    }
+
+    private List<CrawledCampaign> crawlReal(CrawlingSource source) {
+        List<CrawledCampaign> results = new ArrayList<>();
+
+        for (int page = 1; page <= properties.getMaxPagesPerSite(); page++) {
+            try {
+                String body = "ct=&area1=&area2=&page=" + page;
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(API_URL))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .header("X-Requested-With", "XMLHttpRequest")
+                        .header("User-Agent", properties.getUserAgent())
+                        .header("Referer", BASE_URL + "/taste/tastes")
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .build();
+
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) {
+                    log.error("TQUEENS API 응답 오류: HTTP {}", response.statusCode());
+                    break;
+                }
+
+                JsonNode root = objectMapper.readTree(response.body());
+                String layout = root.path("layout").asText("");
+                boolean hasNext = root.path("has_next").asBoolean(false);
+
+                if (layout.isEmpty()) break;
+
+                Document doc = Jsoup.parse(layout);
+                Elements cards = doc.select("a.qz-dq-card__link");
+
+                for (Element card : cards) {
+                    try {
+                        CrawledCampaign campaign = parseItem(card, doc, source);
+                        if (campaign != null) results.add(campaign);
+                    } catch (Exception e) {
+                        log.warn("TQUEENS 아이템 파싱 실패: {}", e.getMessage());
+                    }
+                }
+
+                if (!hasNext) break;
+                if (page < properties.getMaxPagesPerSite()) delayHandler.delay();
+            } catch (Exception e) {
+                log.error("TQUEENS 페이지 {} 크롤링 실패: {}", page, e.getMessage());
+                break;
+            }
+        }
+
+        log.info("TQUEENS 크롤링 완료: {}건", results.size());
+        return results;
+    }
+
+    public CrawledCampaign parseItem(Element card, Document fullDoc, CrawlingSource source) {
+        String href = card.attr("href");
+        Matcher idMatcher = ID_PATTERN.matcher(href);
+        if (!idMatcher.find()) return null;
+        String originalId = idMatcher.group(1);
+
+        String title = card.attr("title").trim();
+        if (title.isEmpty()) return null;
+
+        String originalUrl = BASE_URL + href;
+
+        Element img = card.selectFirst("img");
+        String thumbnailUrl = img != null ? img.attr("src") : null;
+
+        Element parentCard = card.parent();
+        if (parentCard != null) parentCard = parentCard.parent();
+
+        LocalDate applyEndDate = null;
+        CampaignStatus status = CampaignStatus.RECRUITING;
+
+        if (parentCard != null) {
+            String cardText = parentCard.text();
+            Matcher ddayMatcher = DDAY_PATTERN.matcher(cardText);
+            if (ddayMatcher.find()) {
+                int daysLeft = Integer.parseInt(ddayMatcher.group(1));
+                applyEndDate = LocalDate.now().plusDays(daysLeft);
+            }
+        }
+
+        CampaignCategory category = CategoryMapper.map(title);
+
+        return new CrawledCampaign(
+                source.getCode(), originalId, title, null, null,
+                thumbnailUrl, originalUrl, category, status,
+                null, null, applyEndDate, null,
+                null, "블로그 리뷰 작성", null, "택배의여왕,체험단"
+        );
+    }
+
+    private List<CrawledCampaign> generateMockData(CrawlingSource source) {
+        List<CrawledCampaign> mocks = new ArrayList<>();
+        CampaignCategory[] categories = {CampaignCategory.BEAUTY, CampaignCategory.FOOD, CampaignCategory.LIFE,
+                CampaignCategory.DIGITAL, CampaignCategory.TRAVEL};
+        LocalDate today = LocalDate.now();
+
+        for (int i = 1; i <= 10; i++) {
+            CampaignCategory cat = categories[(i - 1) % categories.length];
+            CampaignStatus status = i <= 8 ? CampaignStatus.RECRUITING : CampaignStatus.CLOSED;
+            mocks.add(new CrawledCampaign(
+                    source.getCode(), "tqueens-" + i,
+                    "[택배의여왕] 체험단 캠페인 #" + i,
+                    "택배의여왕 체험단 설명 " + i, null,
+                    "https://placehold.co/300x200?text=TQUEENS+" + i,
+                    BASE_URL + "/taste/" + (100000 + i),
+                    cat, status,
+                    3 + i % 6,
+                    today.minusDays(3),
+                    today.plusDays(5 + i), null,
+                    "제공 내역 " + i,
+                    "블로그 리뷰 작성",
+                    null,
+                    cat.getDisplayName() + ",택배의여왕,체험단"
+            ));
+        }
+        return mocks;
+    }
+}
