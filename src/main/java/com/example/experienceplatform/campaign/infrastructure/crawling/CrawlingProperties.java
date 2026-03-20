@@ -19,6 +19,8 @@ public class CrawlingProperties {
     private String reveApiToken;
     private String reveUsername;
     private String revePassword;
+    private boolean detailFetchEnabled = true;
+    private int detailFetchDelayMs = 500;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -44,4 +46,8 @@ public class CrawlingProperties {
     public void setReveUsername(String reveUsername) { this.reveUsername = reveUsername; }
     public String getRevePassword() { return revePassword; }
     public void setRevePassword(String revePassword) { this.revePassword = revePassword; }
+    public boolean isDetailFetchEnabled() { return detailFetchEnabled; }
+    public void setDetailFetchEnabled(boolean detailFetchEnabled) { this.detailFetchEnabled = detailFetchEnabled; }
+    public int getDetailFetchDelayMs() { return detailFetchDelayMs; }
+    public void setDetailFetchDelayMs(int detailFetchDelayMs) { this.detailFetchDelayMs = detailFetchDelayMs; }
 }

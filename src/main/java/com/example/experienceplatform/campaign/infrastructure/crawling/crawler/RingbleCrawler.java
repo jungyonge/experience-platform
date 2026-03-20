@@ -17,26 +17,30 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class RingbleCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(RingbleCrawler.class);
     private static final String BASE_URL = "https://ringble.co.kr";
     private static final Pattern DDAY_PATTERN = Pattern.compile("(\\d+)일\\s*남음");
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("number=(\\d+)");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
-
-    private int campaignIndex = 0;
+    private final DetailPageEnricher enricher;
 
     public RingbleCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                          RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                          RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                          DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -59,7 +63,6 @@ public class RingbleCrawler implements CampaignCrawler {
         }
 
         List<CrawledCampaign> results = new ArrayList<>();
-        campaignIndex = 0;
 
         // Fetch main page and deadline page
         String[] urls = {
@@ -78,104 +81,115 @@ public class RingbleCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("RINGBLE 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from meta
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[name=description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        // reward from text block containing "제공내역"
+        String reward = null;
+        String fullText = doc.text();
+        Matcher rewardMatcher = Pattern.compile("제공내역[:\\s]*([^\\n]{1,200})").matcher(fullText);
+        if (rewardMatcher.find()) {
+            reward = rewardMatcher.group(1).trim();
+        }
+
+        // currentApplicants from "신청 X / 모집 Y"
+        Integer currentApplicants = null;
+        Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(fullText);
+        if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+
+        // announcementDate from "당첨자 발표일" text
+        LocalDate announcementDate = null;
+        Matcher dateMatcher = Pattern.compile("당첨자\\s*발표일[^\\d]*(\\d{2})년\\s*(\\d{2})월\\s*(\\d{2})일").matcher(fullText);
+        if (dateMatcher.find()) {
+            try {
+                int year = 2000 + Integer.parseInt(dateMatcher.group(1));
+                int month = Integer.parseInt(dateMatcher.group(2));
+                int day = Integer.parseInt(dateMatcher.group(3));
+                announcementDate = LocalDate.of(year, month, day);
+            } catch (Exception ignored) {}
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     private List<CrawledCampaign> parsePage(Document doc, CrawlingSource source) {
         List<CrawledCampaign> results = new ArrayList<>();
 
-        // Find list items with title class
-        Elements titleElements = doc.select(".list_title");
-        for (Element titleEl : titleElements) {
+        Elements cards = doc.select("td.store_list_wrap");
+        for (Element card : cards) {
             try {
-                CrawledCampaign campaign = parseByTitle(titleEl, source);
+                CrawledCampaign campaign = parseCard(card, source);
                 if (campaign != null) results.add(campaign);
             } catch (Exception e) {
                 log.warn("RINGBLE 아이템 파싱 실패: {}", e.getMessage());
             }
         }
 
-        // Also try finding campaign-like links with images
-        if (results.isEmpty()) {
-            Elements links = doc.select("a[href]");
-            for (Element link : links) {
-                Element img = link.selectFirst("img");
-                if (img == null) continue;
-                String href = link.attr("href");
-                if (href.contains("bbs_detail") || href.contains("view")) continue;
-
-                String title = link.attr("title");
-                if (title.isEmpty()) title = img.attr("alt");
-                if (title.isEmpty()) {
-                    Element titleInside = link.selectFirst(".list_title, .title, strong");
-                    if (titleInside != null) title = titleInside.text().trim();
-                }
-
-                if (!title.isEmpty() && title.length() > 3) {
-                    try {
-                        campaignIndex++;
-                        String originalId = "ringble-" + campaignIndex;
-                        String thumbnailUrl = img.attr("abs:src");
-                        String originalUrl = href.startsWith("http") ? href : BASE_URL + "/" + href;
-
-                        // D-day
-                        LocalDate applyEndDate = null;
-                        Element parent = link.parent();
-                        if (parent != null) {
-                            String parentText = parent.text();
-                            Matcher ddayMatcher = DDAY_PATTERN.matcher(parentText);
-                            if (ddayMatcher.find()) {
-                                applyEndDate = LocalDate.now().plusDays(Integer.parseInt(ddayMatcher.group(1)));
-                            } else if (parentText.contains("오늘 마감") || parentText.contains("오늘마감")) {
-                                applyEndDate = LocalDate.now();
-                            }
-                        }
-
-                        CampaignCategory category = CategoryMapper.map(title);
-
-                        results.add(new CrawledCampaign(
-                                source.getCode(), originalId, title, null, null,
-                                thumbnailUrl.isEmpty() ? null : thumbnailUrl,
-                                originalUrl, category, CampaignStatus.RECRUITING,
-                                null, null, applyEndDate, null,
-                                null, "블로그 리뷰 작성", null, "링블,체험단"
-                        ));
-                    } catch (Exception e) {
-                        log.warn("RINGBLE 아이템 파싱 실패: {}", e.getMessage());
-                    }
-                }
-            }
-        }
-
         return results;
     }
 
-    private CrawledCampaign parseByTitle(Element titleEl, CrawlingSource source) {
-        String title = titleEl.text().trim();
-        if (title.isEmpty() || title.length() < 3) return null;
+    private CrawledCampaign parseCard(Element card, CrawlingSource source) {
+        // Extract ID from detail.php?number= link
+        Element detailLink = card.selectFirst("a[href*=detail.php?number=]");
+        if (detailLink == null) return null;
 
-        campaignIndex++;
-        String originalId = "ringble-" + campaignIndex;
+        String href = detailLink.attr("href");
+        Matcher idMatcher = NUMBER_PATTERN.matcher(href);
+        if (!idMatcher.find()) return null;
+        String originalId = idMatcher.group(1);
 
-        Element parent = titleEl.parent();
-        Element link = parent != null ? parent.selectFirst("a[href]") : null;
-        String originalUrl = BASE_URL;
-        if (link != null) {
-            String href = link.attr("href");
-            originalUrl = href.startsWith("http") ? href : BASE_URL + "/" + href;
+        // Title: second .list_title (font-size:14px) or any with longer text
+        String title = null;
+        Elements titleEls = card.select("a.list_title");
+        for (Element el : titleEls) {
+            String text = el.text().trim();
+            if (text.length() > 3 && !text.contains("남음") && !text.contains("마감")) {
+                title = text;
+                break;
+            }
+        }
+        if (title == null || title.isEmpty()) return null;
+
+        String originalUrl = href.startsWith("http") ? href : BASE_URL + "/" + href;
+
+        // Thumbnail
+        Element img = card.selectFirst("a[href*=detail.php] > img");
+        String thumbnailUrl = null;
+        if (img != null) {
+            String src = img.attr("src");
+            if (!src.isEmpty()) {
+                thumbnailUrl = src.startsWith("http") ? src :
+                        (src.startsWith("./") ? BASE_URL + "/" + src.substring(2) : BASE_URL + "/" + src);
+            }
         }
 
-        Element img = parent != null ? parent.selectFirst("img") : null;
-        String thumbnailUrl = img != null ? img.attr("abs:src") : null;
-
+        // D-day
         LocalDate applyEndDate = null;
-        if (parent != null) {
-            String parentText = parent.text();
-            Matcher ddayMatcher = DDAY_PATTERN.matcher(parentText);
-            if (ddayMatcher.find()) {
-                applyEndDate = LocalDate.now().plusDays(Integer.parseInt(ddayMatcher.group(1)));
-            }
+        String cardText = card.text();
+        Matcher ddayMatcher = DDAY_PATTERN.matcher(cardText);
+        if (ddayMatcher.find()) {
+            applyEndDate = LocalDate.now().plusDays(Integer.parseInt(ddayMatcher.group(1)));
         }
 
         CampaignCategory category = CategoryMapper.map(title);

@@ -6,6 +6,8 @@ import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,10 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
 
 @Component
 public class StylecCrawler implements CampaignCrawler {
@@ -34,15 +40,17 @@ public class StylecCrawler implements CampaignCrawler {
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public StylecCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
                           RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper, DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -105,7 +113,8 @@ public class StylecCrawler implements CampaignCrawler {
                 }
 
                 // 다음 페이지 존재 여부 확인
-                int total = root.path("data").path("total").asInt(0);
+                int total = root.path("data").path("Total").asInt(
+                        root.path("data").path("total").asInt(0));
                 if (page * 20 >= total) break;
 
                 if (page < properties.getMaxPagesPerSite()) delayHandler.delay();
@@ -115,8 +124,30 @@ public class StylecCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("STYLEC 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // Stylec is a Vue.js SPA - content loads via client-side JS, not available in Jsoup HTML
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
     }
 
     public CrawledCampaign parseApiItem(JsonNode item, CrawlingSource source) {

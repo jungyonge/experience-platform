@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class OpenreviewCrawler implements CampaignCrawler {
 
@@ -32,13 +34,16 @@ public class OpenreviewCrawler implements CampaignCrawler {
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final DetailPageEnricher enricher;
 
     public OpenreviewCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                             RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                             RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                             DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -79,8 +84,81 @@ public class OpenreviewCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("OPENREVIEW 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from og:description
+        String description = null;
+        Element metaOgDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaOgDesc != null) description = metaOgDesc.attr("content");
+
+        // reward from text containing "제공 내역"
+        String reward = null;
+        for (Element el : doc.select("td, th, dt, dd, span, div, p")) {
+            String text = el.ownText().trim();
+            if (text.contains("제공 내역") || text.contains("제공내역")) {
+                Element next = el.nextElementSibling();
+                if (next != null && !next.text().isBlank()) {
+                    reward = next.text().trim();
+                    break;
+                }
+                String parentText = el.parent() != null ? el.parent().text() : "";
+                if (parentText.length() > text.length()) {
+                    reward = parentText.replace(text, "").trim();
+                    break;
+                }
+            }
+        }
+
+        // address from embedded map or text containing address pattern
+        String address = null;
+        for (Element el : doc.select("td, th, dt, dd, span, div, p")) {
+            String text = el.ownText().trim();
+            if (text.matches(".*[가-힣]+시\\s+[가-힣]+[구군].*") && text.length() < 150) {
+                address = text;
+                break;
+            }
+        }
+
+        // currentApplicants from "신청 X / Y명"
+        Integer currentApplicants = null;
+        Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(doc.text());
+        if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+
+        // announcementDate from "선정발표" text
+        LocalDate announcementDate = null;
+        for (Element el : doc.select("td, th, dt, dd, span, div, p")) {
+            String text = el.text();
+            if (text.contains("선정발표")) {
+                Matcher dm = Pattern.compile("(\\d{2})\\.(\\d{2})").matcher(text);
+                if (dm.find()) {
+                    try {
+                        announcementDate = LocalDate.now()
+                                .withMonth(Integer.parseInt(dm.group(1)))
+                                .withDayOfMonth(Integer.parseInt(dm.group(2)));
+                    } catch (Exception ignored) {}
+                }
+                break;
+            }
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     private Document fetchAjaxPage(int offset) {
@@ -139,7 +217,7 @@ public class OpenreviewCrawler implements CampaignCrawler {
 
         // Thumbnail
         String thumbnailUrl = null;
-        Element img = item.selectFirst(".campaign-image a img");
+        Element img = item.selectFirst("a.campaign-img img");
         if (img != null) {
             String src = img.attr("src");
             if (!src.isEmpty()) {

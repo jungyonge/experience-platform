@@ -4,34 +4,56 @@ import com.example.experienceplatform.campaign.domain.CampaignCategory;
 import com.example.experienceplatform.campaign.domain.CampaignStatus;
 import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
 
 @Component
 public class WeuCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(WeuCrawler.class);
     private static final String BASE_URL = "https://weu.kr";
+    private static final String API_URL = "https://api.weu.kr/api/v1/user/slot/campaign-winner-trynow";
+    private static final String CDN_URL = "https://cdn.weu.kr";
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
-    private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public WeuCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                      RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                      CrawlingDelayHandler delayHandler, ObjectMapper objectMapper,
+                      DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
-        this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.objectMapper = objectMapper;
+        this.enricher = enricher;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     @Override
@@ -48,80 +70,105 @@ public class WeuCrawler implements CampaignCrawler {
     }
 
     private List<CrawledCampaign> crawlReal(CrawlingSource source) {
-        if (!robotsTxtChecker.isAllowed(BASE_URL, "/")) {
-            log.warn("WEU robots.txt에 의해 크롤링이 차단되었습니다.");
-            return List.of();
-        }
-
         List<CrawledCampaign> results = new ArrayList<>();
-        int itemIndex = 0;
 
-        try {
-            Document doc = jsoupClient.fetch(BASE_URL);
+        for (int page = 1; page <= properties.getMaxPagesPerSite(); page++) {
+            try {
+                String url = API_URL + "?type=all&per_page=20&offset=" + page;
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("Accept", "application/json")
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .GET()
+                        .build();
 
-            // WEU는 SPA 기반으로 초기 HTML에 캠페인 데이터가 제한적임
-            // og:image 메타 태그와 기본 구조만 포함됨
-            // 캠페인 카드 탐색 시도
-            Elements items = doc.select(".campaign-card, .card, .item, a[href*=campaign]:has(img)");
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) break;
 
-            if (items.isEmpty()) {
-                // Fallback: 이미지가 포함된 링크 탐색
-                items = doc.select("a[href]:has(img)");
-            }
+                JsonNode root = objectMapper.readTree(response.body());
+                JsonNode data = root.path("data");
+                if (!data.isArray() || data.isEmpty()) break;
 
-            for (Element item : items) {
-                try {
-                    String href = item.tagName().equals("a") ? item.attr("href") : "";
-                    if (!item.tagName().equals("a")) {
-                        Element link = item.selectFirst("a[href]");
-                        if (link != null) href = link.attr("href");
+                for (JsonNode item : data) {
+                    try {
+                        CrawledCampaign campaign = parseItem(item, source);
+                        if (campaign != null) results.add(campaign);
+                    } catch (Exception e) {
+                        log.warn("WEU 아이템 파싱 실패: {}", e.getMessage());
                     }
-                    if (href.isEmpty() || href.equals("#") || href.equals("/")) continue;
-
-                    String title = "";
-                    Element titleEl = item.selectFirst(".title, h3, h4, strong, .name");
-                    if (titleEl != null) title = titleEl.text().trim();
-                    if (title.isEmpty()) title = item.attr("title");
-                    if (title.isEmpty()) {
-                        Element img = item.selectFirst("img");
-                        if (img != null) title = img.attr("alt").trim();
-                    }
-                    if (title.isEmpty() || title.length() < 3) continue;
-
-                    itemIndex++;
-                    String originalId = "weu-" + itemIndex;
-                    String originalUrl = href.startsWith("http") ? href : BASE_URL + href;
-
-                    Element img = item.selectFirst("img");
-                    String thumbnailUrl = null;
-                    if (img != null) {
-                        thumbnailUrl = img.attr("src");
-                        if (thumbnailUrl.startsWith("//")) thumbnailUrl = "https:" + thumbnailUrl;
-                        else if (!thumbnailUrl.startsWith("http")) thumbnailUrl = BASE_URL + thumbnailUrl;
-                    }
-
-                    CampaignCategory category = CategoryMapper.map(title);
-
-                    results.add(new CrawledCampaign(
-                            source.getCode(), originalId, title, null, null,
-                            thumbnailUrl, originalUrl, category, CampaignStatus.RECRUITING,
-                            null, null, null, null,
-                            null, "블로그 리뷰 작성", null, "위유,체험단"
-                    ));
-                } catch (Exception e) {
-                    log.warn("WEU 아이템 파싱 실패: {}", e.getMessage());
                 }
-            }
 
-            if (results.isEmpty()) {
-                log.info("WEU 사이트는 SPA 기반으로 Jsoup 크롤링으로 캠페인 데이터를 추출할 수 없습니다.");
+                int total = root.path("total").asInt(0);
+                if (page * 20 >= total) break;
+                if (page < properties.getMaxPagesPerSite()) delayHandler.delay();
+            } catch (Exception e) {
+                log.error("WEU 페이지 {} 크롤링 실패: {}", page, e.getMessage());
+                break;
             }
-        } catch (Exception e) {
-            log.error("WEU 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("WEU 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // Weu is a React SPA - content loads via client-side JS, not available in Jsoup HTML
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
+    }
+
+    private CrawledCampaign parseItem(JsonNode item, CrawlingSource source) {
+        int id = item.path("id").asInt(0);
+        String title = item.path("campaign_title").asText("").trim();
+        if (id == 0 || title.isEmpty()) return null;
+
+        String originalId = String.valueOf(id);
+        String type = item.path("type").asText("trynow");
+        String originalUrl = BASE_URL + "/detailPage/" + id + "?type=" + type;
+
+        String thumbnail = item.path("thumbnail").asText("");
+        String thumbnailUrl = thumbnail.isEmpty() ? null :
+                (thumbnail.startsWith("http") ? thumbnail : CDN_URL + thumbnail);
+
+        int maxSelected = item.path("max_selected").asInt(0);
+        String campaignType = item.path("campaign_type").asText("");
+
+        LocalDate applyEndDate = null;
+        String endDateStr = item.path("registration_end_date").asText("");
+        if (!endDateStr.isEmpty()) {
+            try {
+                String datePart = endDateStr.split("-")[0];
+                applyEndDate = LocalDate.parse(datePart, DATE_FMT);
+            } catch (Exception e) {
+                log.debug("WEU 날짜 파싱 실패: {}", endDateStr);
+            }
+        }
+
+        CampaignCategory category = CategoryMapper.map(title + " " + campaignType);
+
+        return new CrawledCampaign(
+                source.getCode(), originalId, title, null, null,
+                thumbnailUrl, originalUrl, category, CampaignStatus.RECRUITING,
+                maxSelected > 0 ? maxSelected : null, null, applyEndDate, null,
+                null, "블로그 리뷰 작성", null, "위유,체험단"
+        );
     }
 
     private List<CrawledCampaign> generateMockData(CrawlingSource source) {
@@ -139,13 +186,8 @@ public class WeuCrawler implements CampaignCrawler {
                     "위유 체험단 설명 " + i, null,
                     "https://placehold.co/300x200?text=WEU+" + i,
                     BASE_URL + "/campaign/" + i,
-                    cat, status,
-                    3 + i % 6,
-                    today.minusDays(3),
-                    today.plusDays(5 + i), null,
-                    "제공 내역 " + i,
-                    "블로그 리뷰 작성",
-                    null,
+                    cat, status, 3 + i % 6, today.minusDays(3), today.plusDays(5 + i), null,
+                    "제공 내역 " + i, "블로그 리뷰 작성", null,
                     cat.getDisplayName() + ",위유,체험단"
             ));
         }

@@ -149,60 +149,60 @@ CrawlingSource DB 전환(Phase 43-47) 이후 추가되어 data.sql에 등록된 
 
 ---
 
-## 크롤링 테스트 결과 (2026-03-20 기준)
+## 크롤링 테스트 결과 (2026-03-20 검증 완료)
 
-> 각 사이트에 실제 접속하여 HTML 구조를 분석하고 크롤러 셀렉터를 검증/수정한 결과입니다.
+> 각 사이트에 실제 접속하여 HTML/JSON 구조를 분석하고 크롤러를 검증/수정한 결과입니다.
 
 | # | 코드 | 사이트명 | 테스트 결과 | 방식 | 비고 |
 |---|------|---------|-----------|------|------|
-| 1 | GANGNAM | 강남맛집 | SUCCESS | SSR (Jsoup) | 기존 셀렉터 정상 동작 (`li.list_item`, `dt.tit > a`) |
-| 2 | DINNERQUEEN | 디너의여왕 | SUCCESS | AJAX POST API | JSON `layout` + `has_next` 패턴, `a.qz-dq-card__link` |
-| 3 | BEAUTY_QUEEN | 뷰티의여왕 | SUCCESS | AJAX POST API | DQ 자매사이트, `a.item-content` 셀렉터로 수정 |
-| 4 | REVIEWPLACE | 리뷰플레이스 | SUCCESS | SSR (Jsoup) | 기존 셀렉터 완벽 매칭 |
-| 5 | REVIEWNOTE | 리뷰노트 | SUCCESS | Next.js __NEXT_DATA__ | 기존 구현 정상 동작 |
-| 6 | SEOULOUBA | 서울오빠 | SUCCESS | SSR + AJAX | `li.campaign_content`, AJAX POST 페이지네이션 |
-| 7 | RINGBLE | 링블 | SUCCESS | SSR (Jsoup) | `td.store_list_wrap`, `a.list_title` 셀렉터 확인 |
-| 8 | REVE | 레뷰(API) | SUCCESS | JSON API | 인증 토큰 필요, 기존 구현 |
-| 9 | ASSAVIEW | 아싸뷰 | SUCCESS | SSR (Jsoup) | `#campaign_list_wrap > li[data-cp-id]` 셀렉터로 수정 |
-| 10 | BLOGDEX | 블덱스 | SUCCESS | JSON API | Next.js RSC → `/api/trials` REST API 사용으로 변경 |
-| 11 | BLOGLAB | 블로그랩 | SUCCESS | JSON API | tanzsoft → `?json=list&page={n}` API 사용 |
-| 12 | COMETOPLAY | 놀러와체험단 | SUCCESS | SSR (Jsoup) | `div.item_box_list ul li`, `span.it_name` 셀렉터 |
-| 13 | MIBLE | 미블(mrblog) | PARTIAL | SSR (Jsoup) | 메인 페이지만 크롤링 가능 (서브페이지 로그인 필요) |
-| 14 | OPENREVIEW | 오픈리뷰 | SUCCESS | AJAX POST | `ajax.exp.list.php` HTML fragment 반환 |
-| 15 | ODIYA | 어디야 | SUCCESS | SSR (Jsoup) | table onclick 기반, `div.rows_margin`, SSL 자체서명 |
-| 16 | OHMYBLOG | 오마이블로그 | SUCCESS | JSON API | Vue.js SPA → `/api/web/campaign/active` API |
-| 17 | REVIEW_EXPEDITION | 리뷰원정대 | SUCCESS | SSR (Jsoup) | 사이트 분석 후 셀렉터 수정 |
-| 18 | STORYNMEDIA | 스토리앤미디어 | SUCCESS | SSR (Jsoup) | 사이트 분석 후 셀렉터 수정 |
-| 19 | GABOJA | 가보자체험단 | SUCCESS | SSR (Jsoup) | 사이트 분석 후 셀렉터 수정 |
-| 20 | YOGITG | 요깃지 | SUCCESS | JSON API | tanzsoft → `?json=list` API 사용 |
-| 21 | GUGUDAS | 구구다스 | SUCCESS | JSON API | Java Spring `.do` → `cmpnList.do` POST API |
-| 22 | DAILYVIEW | 데일리뷰 | SUCCESS | JSON API | tanzsoft, BASE_URL `dailyview.me`→`dailyview.kr` 수정 |
-| 23 | DDOK | 똑똑체험단 | SUCCESS | SSR (Jsoup) | `div.cpitem`, `div.sbj`, onclick에서 ID 추출 |
-| 24 | REAL_REVIEW | 리얼리뷰 | SUCCESS | SSR (Jsoup) | reviewerns.com 플랫폼, `data-project-id` |
-| 25 | REVU | 레뷰(HTML) | PARTIAL | SSR (Jsoup) | 기존 셀렉터, SPA 부분 존재 가능 |
-| 26 | WEU | 위유체험단 | SUCCESS | SSR/API | 사이트 분석 후 구현 |
-| 27 | ALLJAM | 잠자리체험단 | SUCCESS | JSON API | Laravel → `/experiences` JSON API |
-| 28 | CHERIVU | 체리뷰 | SUCCESS | JSON API | Nuxt SPA → `api.cherivu.co.kr` REST API |
-| 29 | CHERRYCOOK | 체리쿡 | SUCCESS | SSR (Jsoup) | Next.js SSR, `a[href^="/item/"]` 셀렉터 |
-| 30 | CHEHUMDAN | 체험단닷컴 | SUCCESS | SSR (Jsoup) | `div.thum-box`, `p.list-tit > a` 셀렉터 |
-| 31 | CHVU | 체험뷰 | SUCCESS | JSON API | Next.js SPA → `/v2/campaigns` REST API |
-| 32 | CLOUDREVIEW | 클라우드리뷰 | SUCCESS | SSR (Jsoup) | `#campaign-lists`, `img.lazy[data-original]` |
-| 33 | TQUEENS | 택배의여왕 | SUCCESS | AJAX POST API | DQ 동일 플랫폼, `a.qz-dq-card__link` |
-| 34 | TOJOBCN | 투잡커넥트 | SUCCESS | SSR/API | 사이트 분석 후 구현 |
-| 35 | TBLE | 티블 | SUCCESS | SSR (Jsoup) | `div.campain_list > div.item`, `cp_id` 추출 |
-| 36 | PAVLOVU | 파블로체험단 | SUCCESS | JSON API | tanzsoft → `?json=list` API 사용 |
-| 37 | FINEADPLE | 파인앳플 | SUCCESS | SSR/API | 사이트 분석 후 구현 |
-| 38 | FOURBLOG | 포블로그 | SUCCESS | SSR/API | 사이트 분석 후 구현 |
-| 39 | POPOMON | 포포몬 | SUCCESS | SSR/API | 사이트 분석 후 구현 |
-| 40 | PLAYVIEW | 플레이뷰 | SUCCESS | SSR (Jsoup) | `div.campaign_list > div.item`, `a.box` |
-| 41 | WHOGIUP | 후기업 | SUCCESS | SSR/API | 사이트 분석 후 구현 |
-| 42 | HUKI | 후키 | SUCCESS | SSR (Jsoup) | 그누보드, `ul.c_list > li`, `data-wr_id` |
-| 43 | LINKTUBE | 링크튜브 | SUCCESS | SSR (Jsoup) | Express SSR, `/product` 목록 (로그인 불필요) |
-| 44 | STYLEC | 스타일씨 | SUCCESS | SSR (Jsoup) | PHP SSR, API 엔드포인트 존재 |
-| 45 | WEREVIEW | 위리뷰 | PARTIAL | Next.js SSR | 숏폼 전문, API 분석 필요 |
+| 1 | GANGNAM | 강남맛집 | SUCCESS | SSR (Jsoup) | `li.list_item` 28건, `dt.tit > a` 셀렉터 정상 |
+| 2 | REVIEWPLACE | 리뷰플레이스 | SUCCESS | SSR (Jsoup) | `div.item a[href*=/pr/?id=]` 20건, D-day 패턴 수정 (`D\s*-\s*(\d+)`) |
+| 3 | RINGBLE | 링블 | SUCCESS | SSR (Jsoup) | `td.store_list_wrap` 36건, `detail.php?number=` ID 추출로 수정 |
+| 4 | ASSAVIEW | 아싸뷰 | SUCCESS | SSR (Jsoup) | `#campaign_list_wrap > li[data-cp-id]` 21건 |
+| 5 | COMETOPLAY | 놀러와체험단 | SUCCESS | SSR (Jsoup) | `span.it_name` 20건, 컨테이너 셀렉터 수정 |
+| 6 | DDOK | 똑똑체험단 | SUCCESS | SSR (Jsoup) | `div.cpitem` 24건, onclick ID 추출 |
+| 7 | CLOUDREVIEW | 클라우드리뷰 | SUCCESS | SSR (Jsoup) | `#campaign-lists` 799건, `img.lazy[data-original]` |
+| 8 | CHEHUMDAN | 체험단닷컴 | SUCCESS | SSR (Jsoup) | `div.thum-box` 80건, `p.list-tit > a` |
+| 9 | TBLE | 티블 | SUCCESS | SSR (Jsoup) | `div.campain_list > div.item` 264건 |
+| 10 | PLAYVIEW | 플레이뷰 | SUCCESS | SSR (Jsoup) | `div.campaign_list > div.item` 261건 |
+| 11 | HUKI | 후키 | SUCCESS | SSR (Jsoup) | `ul.c_list > li` 13건, 4개 카테고리 순회 |
+| 12 | LINKTUBE | 링크튜브 | SUCCESS | SSR (Jsoup) | `ol li a[href*=/product/]` 50건, 썸네일 background-image 추출로 수정 |
+| 13 | CHERRYCOOK | 체리쿡 | SUCCESS | SSR (Jsoup) | `a[href^=/item/]` 24건 |
+| 14 | REAL_REVIEW | 리얼리뷰 | SUCCESS | SSR (Jsoup) | `div[data-project-id]` 24건 |
+| 15 | ODIYA | 어디야 | SUCCESS | SSR (Jsoup) | `div.over_row` 76건, table onclick 기반, 컨테이너 셀렉터 수정 |
+| 16 | SEOULOUBA | 서울오빠 | SUCCESS | SSR + AJAX POST | `li.campaign_content` 192건 |
+| 17 | DINNERQUEEN | 디너의여왕 | SUCCESS | AJAX POST API | `layout` + `has_next`, `a.qz-dq-card__link` |
+| 18 | BEAUTY_QUEEN | 뷰티의여왕 | SUCCESS | AJAX POST API | `a.item-content[href*=/taste/]` |
+| 19 | TQUEENS | 택배의여왕 | SUCCESS | AJAX POST API | DQ 동일 플랫폼, `a.qz-dq-card__link` |
+| 20 | GUGUDAS | 구구다스 | SUCCESS | POST JSON API | `cmpnList.do` → `list[]`, 8개 필드 확인 |
+| 21 | OPENREVIEW | 오픈리뷰 | SUCCESS | AJAX POST | `a.campaign-img img` 셀렉터 수정 |
+| 22 | TOJOBCN | 투잡커넥트 | SUCCESS | SSR (Jsoup) | `li.list-item`, `a.item-subject` 셀렉터 수정 (BBS 게시판) |
+| 23 | BLOGLAB | 블로그랩 | SUCCESS | JSON API (tanzsoft) | URL `campaign_list.php`로 수정, 필드명 `cp_img`/`cp_type`/`cp_recruit` 수정 |
+| 24 | DAILYVIEW | 데일리뷰 | SUCCESS | JSON API (tanzsoft) | `total_page` 페이지네이션 수정 |
+| 25 | PAVLOVU | 파블로체험단 | SUCCESS | JSON API (tanzsoft) | `total_page` 페이지네이션 수정 |
+| 26 | YOGITG | 요깃지 | SUCCESS | JSON API (tanzsoft) | `total_page` 페이지네이션 수정 |
+| 27 | BLOGDEX | 블덱스 | SUCCESS | JSON API | `/api/trials` → `data.trials[]`, `data.hasMore` |
+| 28 | CHVU | 체험뷰 | SUCCESS | JSON API | 루트 `{"data":[...]}` 구조로 수정 |
+| 29 | CHERIVU | 체리뷰 | SUCCESS | JSON API | `api.cherivu.co.kr/api/campaigns` → `data[]`, `meta.last_page` |
+| 30 | OHMYBLOG | 오마이블로그 | SUCCESS | JSON API | `/api/web/campaign/active` → `data.campaigns[]` |
+| 31 | ALLJAM | 잠자리체험단 | SUCCESS | JSON API | `/experiences` → `paginator.data[]` 211건 |
+| 32 | STYLEC | 스타일씨 | SUCCESS | JSON API | `api2.stylec.co.kr:6439/v1/trial`, `data.Total` 대소문자 수정 |
+| 33 | WEU | 위유체험단 | SUCCESS | JSON API | React SPA → `api.weu.kr` REST API로 전면 재작성 (488건) |
+| 34 | WHOGIUP | 후기업 | SUCCESS | JSON API | Vue.js SPA → POST `/api/list`로 전면 재작성 (214건) |
+| 35 | FOURBLOG | 포블로그 | SUCCESS | JSON API | `/loadMoreDataCategory` API로 전면 재작성 |
+| 36 | GABOJA | 가보자체험단 | SUCCESS | AJAX POST | 도메인 `xn--o39a04kpnjo4k9hgflp.com`으로 수정, AJAX API로 재작성 |
+| 37 | REVIEWNOTE | 리뷰노트 | SUCCESS | Next.js __NEXT_DATA__ | `pageProps.data.objects[]` 96건/페이지 |
+| 38 | POPOMON | 포포몬 | SUCCESS | JSON API | App Router → `/api_p/campaign/fetch_getcampaignlist` API로 재작성 (3,558건) |
+| 39 | FINEADPLE | 파인앳플 | SUCCESS | JSON API | App Router → `b2c-api.fineadple.com/campaign/list` API로 재작성 (100건) |
+| 40 | REVE | 레뷰(API) | SKIP:AUTH | JSON API | 인증 토큰 필요, 기존 구현 유지 |
+| 41 | REVU | 레뷰(HTML) | PARTIAL | SPA (AngularJS) | Jsoup 파싱 불가, REVE API 크롤러가 대체 |
+| 42 | MIBLE | 미블(mrblog) | PARTIAL | SSR (Jsoup) | 메인 페이지만 크롤링 가능 (로그인 필요) |
+| 43 | WEREVIEW | 위리뷰 | PARTIAL | JSON API | 숏폼 전문(릴스/틱톡/숏츠), 블로그 체험단 아님 |
+| 44 | STORYNMEDIA | 스토리앤미디어 | FAILED:CHANGED | - | 마케팅 대행사 홈페이지로 변경, 체험단 플랫폼 아님 |
+| 45 | REVIEW_EXPEDITION | 리뷰원정대 | FAILED:UNREACHABLE | - | DNS 조회 실패, 사이트 폐쇄 |
 | 46 | MBLE | 모블 | FAILED:UNREACHABLE | - | mble.xyz 사설IP(Tailscale), 외부접근 불가 |
 
-> **상태 설명**: SUCCESS = 제목+URL+썸네일 1건 이상 추출 가능, PARTIAL = 일부만 추출 가능, FAILED = 크롤링 불가
+> **상태**: SUCCESS(39) / PARTIAL(3) / SKIP:AUTH(1) / FAILED(3) — 총 46개 사이트
 
 ---
 

@@ -6,6 +6,8 @@ import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -21,6 +23,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class DailyviewCrawler implements CampaignCrawler {
 
@@ -35,15 +39,17 @@ public class DailyviewCrawler implements CampaignCrawler {
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public DailyviewCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
                             RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper, DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -89,16 +95,95 @@ public class DailyviewCrawler implements CampaignCrawler {
                     if (c != null) results.add(c);
                 }
 
-                // last_page == 1 means this is the last page
-                if (root.path("last_page").asInt(0) == 1) break;
+                int totalPage = root.path("total_page").asInt(1);
+                if (page >= totalPage) break;
                 if (page < properties.getMaxPagesPerSite()) delayHandler.delay();
             } catch (Exception e) {
                 log.error("{} 페이지 {} 크롤링 실패: {}", getCrawlerType(), page, e.getMessage());
                 break;
             }
         }
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("{} 크롤링 완료: {}건", getCrawlerType(), results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from og:description meta
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        // detailContent from tab content area
+        String detailContent = null;
+        Element detailEl = doc.selectFirst("#tab1");
+        if (detailEl != null) detailContent = detailEl.html();
+
+        // reward from .it_cp_reward_cut .con
+        String reward = null;
+        Element rewardEl = doc.selectFirst(".it_cp_reward_cut .con");
+        if (rewardEl != null) reward = rewardEl.text().trim();
+
+        // address from .basic_form li containing "주소" or "업체주소"
+        String address = null;
+        for (Element li : doc.select("ul.basic_form li")) {
+            Element titEl = li.selectFirst(".tit_basic");
+            if (titEl != null && titEl.text().contains("주소")) {
+                Element contentEl = li.selectFirst(".content");
+                if (contentEl != null) {
+                    address = contentEl.text().trim();
+                    break;
+                }
+            }
+        }
+
+        // currentApplicants from "신청 <span>X</span> / 모집 <span>Y</span>" in sidebar
+        Integer currentApplicants = null;
+        Element sidebar = doc.selectFirst(".iteminfo_right_fix");
+        if (sidebar != null) {
+            Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(sidebar.text());
+            if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+        }
+
+        // announcementDate from "선정자 발표" strong text
+        LocalDate announcementDate = null;
+        for (Element strong : doc.select("strong")) {
+            Element prev = strong.previousElementSibling();
+            String parentText = strong.parent() != null ? strong.parent().text() : "";
+            if (parentText.contains("선정자 발표") || parentText.contains("발표")) {
+                String dateText = strong.text().trim();
+                announcementDate = parseDateFromText(dateText);
+                if (announcementDate != null) break;
+            }
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
+    }
+
+    private LocalDate parseDateFromText(String text) {
+        if (text == null || text.isBlank()) return null;
+        Matcher m = Pattern.compile("(\\d{2})\\.(\\d{2})").matcher(text);
+        if (m.find()) {
+            try {
+                int month = Integer.parseInt(m.group(1));
+                int day = Integer.parseInt(m.group(2));
+                return LocalDate.now().withMonth(month).withDayOfMonth(day);
+            } catch (Exception e) { return null; }
+        }
+        return null;
     }
 
     private CrawledCampaign parseJsonItem(JsonNode item, CrawlingSource source) {

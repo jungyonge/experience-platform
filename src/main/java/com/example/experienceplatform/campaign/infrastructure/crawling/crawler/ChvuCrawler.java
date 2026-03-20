@@ -6,6 +6,8 @@ import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
 
 @Component
 public class ChvuCrawler implements CampaignCrawler {
@@ -29,15 +35,20 @@ public class ChvuCrawler implements CampaignCrawler {
     private static final String API_URL = "https://chvu.co.kr/v2/campaigns";
 
     private final CrawlingProperties properties;
+    private final JsoupClient jsoupClient;
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
-    public ChvuCrawler(CrawlingProperties properties, CrawlingDelayHandler delayHandler,
-                       ObjectMapper objectMapper) {
+    public ChvuCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
+                       CrawlingDelayHandler delayHandler, ObjectMapper objectMapper,
+                       DetailPageEnricher enricher) {
         this.properties = properties;
+        this.jsoupClient = jsoupClient;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -78,10 +89,11 @@ public class ChvuCrawler implements CampaignCrawler {
                 }
 
                 JsonNode root = objectMapper.readTree(response.body());
+                JsonNode data = root.path("data");
 
-                if (!root.isArray() || root.isEmpty()) break;
+                if (!data.isArray() || data.isEmpty()) break;
 
-                for (JsonNode item : root) {
+                for (JsonNode item : data) {
                     try {
                         CrawledCampaign campaign = parseCampaign(item, source);
                         if (campaign != null) results.add(campaign);
@@ -91,7 +103,7 @@ public class ChvuCrawler implements CampaignCrawler {
                 }
 
                 // If fewer than count items, no more pages
-                if (root.size() < 20) break;
+                if (data.size() < 20) break;
                 if (page < properties.getMaxPagesPerSite()) delayHandler.delay();
             } catch (Exception e) {
                 log.error("CHVU 페이지 {} 크롤링 실패: {}", page, e.getMessage());
@@ -99,8 +111,31 @@ public class ChvuCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("CHVU 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // Chvu is a Next.js SPA - content loads via client-side JS, not available in Jsoup HTML
+        // Only og:description meta tag is reliably available in static HTML
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
     }
 
     private CrawledCampaign parseCampaign(JsonNode item, CrawlingSource source) {

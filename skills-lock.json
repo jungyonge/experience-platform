@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "skills": {
+    "agent-browser": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "computedHash": "9dcf7342a0a051445137a279855f6ed9b1fb342e46291b799c344ac20e34d409"
+    },
+    "browser-use": {
+      "source": "browser-use/browser-use",
+      "sourceType": "github",
+      "computedHash": "409117e97ea4689e138a2080bfa94893e31ea216fbd0220d834dbdb791ecbe0e"
+    },
+    "dogfood": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "computedHash": "055e73cddeec68e7eb75eab0c3f8490415384f72e98ac05405821427ed0e74b1"
+    },
+    "electron": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "computedHash": "587f7d9187c237d909b9f446cf3ac357184342d54ceb7c430dec56fdbac6816c"
+    },
+    "firecrawl": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "f79f957689cc705613a2731f2f35360192fc9a6a28bc3de73484c973621df5ed"
+    },
+    "firecrawl-agent": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "9ac41c69e38a007c0948472d8c7954377639119caab611ad6decb94017de1200"
+    },
+    "firecrawl-browser": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "7129fbae5d4db7063641a39ca01756e85e911735dfff3ba31145b5b4bc4f247e"
+    },
+    "firecrawl-crawl": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "9a0e53d6ded771af4a782670ef5b17f924d42f90c2e95de677effba5c83503b4"
+    },
+    "firecrawl-download": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "82c403305fc798c1a29883f660a794cadce62416cf4391a02e1218ca7a6e831b"
+    },
+    "firecrawl-map": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "29510c43a9119eacfd90aaddce91c87d02f83b5b6979b52181e7b4a1293a52a4"
+    },
+    "firecrawl-scrape": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "59998e77e58ea0830c4ba5921cac65b1c2929847cf386b4060e19f5dcd0957f3"
+    },
+    "firecrawl-search": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "7e2f8e9594b4322d2afcd13dd9bbcff0977c47a75b3f2e5d7e1ff8b05e83da68"
+    },
+    "remote-browser": {
+      "source": "browser-use/browser-use",
+      "sourceType": "github",
+      "computedHash": "117e178039f161c955f5f0f412cd70e9ced99bfca2d6e9e215c921338ad50c89"
+    },
+    "slack": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "computedHash": "2b88c3cb2e5debf7a4f14a4759e6338b3e88fe127cabaac3fa649af6ca0bdbbd"
+    },
+    "vercel-sandbox": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "computedHash": "18664220dc6dc14b824b0b2de59fd43c1ae745cd0d0dbd663db27c741da1577b"
+    }
+  }
+}

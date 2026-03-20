@@ -1,12 +1,14 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+이 파일은 Claude Code (claude.ai/code)가 이 저장소의 코드를 다룰 때 참고하는 가이드입니다.
 
-## Project Overview
+**중요: 모든 출력과 설명은 반드시 한글로 작성해야 합니다.**
+
+## 프로젝트 개요
 
 체험단 통합 플랫폼 (Experience Platform) - 블로그 체험단 캠페인을 여러 사이트에서 크롤링하여 통합 제공하는 풀스택 웹 애플리케이션.
 
-## Build & Run Commands
+## 빌드 및 실행 명령어
 
 ```bash
 ./gradlew bootRun          # 백엔드 실행 (local 프로필, H2 인메모리 DB)
@@ -20,14 +22,14 @@ npm install && npm run dev   # Vite 개발서버 (localhost:5173)
 npm run build                # 빌드 → src/main/resources/static 으로 복사
 ```
 
-## Tech Stack
+## 기술 스택
 
-- **Backend**: Java 17, Spring Boot 3.4.1, Spring Security (JWT), Spring Data JPA, H2
-- **Frontend**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
-- **Crawling**: Jsoup 1.17.2
-- **Testing**: JUnit 5, Mockito, AssertJ
+- **백엔드**: Java 17, Spring Boot 3.4.1, Spring Security (JWT), Spring Data JPA, H2
+- **프론트엔드**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **크롤링**: Jsoup 1.17.2
+- **테스트**: JUnit 5, Mockito, AssertJ
 
-## Architecture
+## 아키텍처
 
 DDD 기반 레이어드 아키텍처. 두 개의 바운디드 컨텍스트: `member/`, `campaign/`.
 
@@ -39,7 +41,7 @@ DDD 기반 레이어드 아키텍처. 두 개의 바운디드 컨텍스트: `mem
 
 리포지토리 패턴: `Domain Interface → JpaRepository 구현체 → SpringDataJpa 인터페이스` 3단 구조.
 
-## Crawling Architecture
+## 크롤링 아키텍처
 
 - `CampaignCrawler` 인터페이스를 각 사이트별로 구현 (30+ 크롤러)
 - `CrawlerRegistry`가 Spring 컴포넌트 스캔으로 크롤러를 자동 등록하고 `crawlerType`으로 매핑
@@ -48,20 +50,20 @@ DDD 기반 레이어드 아키텍처. 두 개의 바운디드 컨텍스트: `mem
 - 중복 방지: `(crawlingSource, originalId)` 유니크 제약 조건으로 upsert
 - 크롤링 설정은 `application-local.yml`의 `crawling.*` 프로퍼티로 외부화
 
-## Authentication
+## 인증
 
 JWT 기반 stateless 인증. Access Token(30분) + Refresh Token(7일) 로테이션.
 - `JwtTokenProvider` — 토큰 생성/검증
 - `JwtAuthenticationFilter` — 요청별 인증 필터
 - 공개 엔드포인트: 회원가입, 로그인, 토큰갱신, 캠페인 목록/상세
 
-## Database
+## 데이터베이스
 
 개발환경: H2 인메모리 (`jdbc:h2:mem:experiencedb`, DDL auto `create-drop`)
 - 콘솔: `http://localhost:8080/h2-console`
 - 프로덕션 마이그레이션 도구 미적용 (Flyway/Liquibase 필요)
 
-## Key Conventions
+## 주요 규칙
 
 - 생성자 주입만 사용 (필드 주입 금지)
 - Application 레이어에서 Command(입력)/Info(출력) DTO 분리, Interfaces 레이어에서 Request/Response DTO 분리

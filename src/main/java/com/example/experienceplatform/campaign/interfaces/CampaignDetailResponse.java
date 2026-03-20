@@ -21,6 +21,7 @@ public class CampaignDetailResponse {
     private final String status;
     private final String statusDisplayName;
     private final Integer recruitCount;
+    private final Integer currentApplicants;
     private final LocalDate applyStartDate;
     private final LocalDate applyEndDate;
     private final LocalDate announcementDate;
@@ -36,7 +37,8 @@ public class CampaignDetailResponse {
                                    String thumbnailUrl, String originalUrl,
                                    String category, String categoryDisplayName,
                                    String status, String statusDisplayName,
-                                   Integer recruitCount, LocalDate applyStartDate,
+                                   Integer recruitCount, Integer currentApplicants,
+                                   LocalDate applyStartDate,
                                    LocalDate applyEndDate, LocalDate announcementDate,
                                    String reward, String mission, String address,
                                    List<String> keywords,
@@ -54,6 +56,7 @@ public class CampaignDetailResponse {
         this.status = status;
         this.statusDisplayName = statusDisplayName;
         this.recruitCount = recruitCount;
+        this.currentApplicants = currentApplicants;
         this.applyStartDate = applyStartDate;
         this.applyEndDate = applyEndDate;
         this.announcementDate = announcementDate;
@@ -80,6 +83,7 @@ public class CampaignDetailResponse {
                 detail.getStatus(),
                 detail.getStatusDisplayName(),
                 detail.getRecruitCount(),
+                detail.getCurrentApplicants(),
                 detail.getApplyStartDate(),
                 detail.getApplyEndDate(),
                 detail.getAnnouncementDate(),
@@ -105,6 +109,7 @@ public class CampaignDetailResponse {
     public String getStatus() { return status; }
     public String getStatusDisplayName() { return statusDisplayName; }
     public Integer getRecruitCount() { return recruitCount; }
+    public Integer getCurrentApplicants() { return currentApplicants; }
     public LocalDate getApplyStartDate() { return applyStartDate; }
     public LocalDate getApplyEndDate() { return applyEndDate; }
     public LocalDate getAnnouncementDate() { return announcementDate; }

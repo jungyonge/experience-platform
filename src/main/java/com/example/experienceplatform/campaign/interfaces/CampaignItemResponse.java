@@ -17,13 +17,15 @@ public class CampaignItemResponse {
     private final String status;
     private final String statusDisplayName;
     private final Integer recruitCount;
+    private final Integer currentApplicants;
     private final LocalDate applyEndDate;
 
     private CampaignItemResponse(Long id, String sourceType, String sourceDisplayName,
                                  String title, String thumbnailUrl, String originalUrl,
                                  String category, String categoryDisplayName,
                                  String status, String statusDisplayName,
-                                 Integer recruitCount, LocalDate applyEndDate) {
+                                 Integer recruitCount, Integer currentApplicants,
+                                 LocalDate applyEndDate) {
         this.id = id;
         this.sourceType = sourceType;
         this.sourceDisplayName = sourceDisplayName;
@@ -35,6 +37,7 @@ public class CampaignItemResponse {
         this.status = status;
         this.statusDisplayName = statusDisplayName;
         this.recruitCount = recruitCount;
+        this.currentApplicants = currentApplicants;
         this.applyEndDate = applyEndDate;
     }
 
@@ -51,6 +54,7 @@ public class CampaignItemResponse {
                 summary.getStatus(),
                 summary.getStatusDisplayName(),
                 summary.getRecruitCount(),
+                summary.getCurrentApplicants(),
                 summary.getApplyEndDate()
         );
     }
@@ -66,5 +70,6 @@ public class CampaignItemResponse {
     public String getStatus() { return status; }
     public String getStatusDisplayName() { return statusDisplayName; }
     public Integer getRecruitCount() { return recruitCount; }
+    public Integer getCurrentApplicants() { return currentApplicants; }
     public LocalDate getApplyEndDate() { return applyEndDate; }
 }

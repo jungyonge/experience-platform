@@ -31,6 +31,7 @@ const mockResponse = {
       status: 'RECRUITING',
       statusDisplayName: '모집중',
       recruitCount: 5,
+      currentApplicants: null,
       applyEndDate: '2026-03-31',
     },
   ],

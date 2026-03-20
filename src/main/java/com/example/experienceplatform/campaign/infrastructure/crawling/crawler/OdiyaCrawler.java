@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class OdiyaCrawler implements CampaignCrawler {
 
@@ -32,13 +34,16 @@ public class OdiyaCrawler implements CampaignCrawler {
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final DetailPageEnricher enricher;
 
     public OdiyaCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                        RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                        RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                        DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -64,7 +69,7 @@ public class OdiyaCrawler implements CampaignCrawler {
 
         try {
             Document doc = jsoupClient.fetch(LIST_URL);
-            Elements items = doc.select("div.rows_margin");
+            Elements items = doc.select("div.over_row");
 
             for (Element item : items) {
                 try {
@@ -78,8 +83,64 @@ public class OdiyaCrawler implements CampaignCrawler {
             log.error("ODIYA 페이지 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("ODIYA 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from meta
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[name=description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        // Odiya uses table-based layout similar to Ringble
+        String fullText = doc.text();
+
+        // reward from "제공내역" text pattern
+        String reward = null;
+        Matcher rewardMatcher = Pattern.compile("제공내역[:\\s]*([^\\n]{1,200})").matcher(fullText);
+        if (rewardMatcher.find()) {
+            reward = rewardMatcher.group(1).trim();
+        }
+        if (reward == null) {
+            Element rewardHeader = doc.selectFirst("td:contains(제공), th:contains(제공)");
+            if (rewardHeader != null) {
+                Element rewardCell = rewardHeader.nextElementSibling();
+                if (rewardCell != null && !rewardCell.text().isBlank()) {
+                    reward = rewardCell.text().trim();
+                }
+            }
+        }
+
+        // address from table cell
+        String address = null;
+        Element addrHeader = doc.selectFirst("td:contains(주소), th:contains(주소)");
+        if (addrHeader != null) {
+            Element addrCell = addrHeader.nextElementSibling();
+            if (addrCell != null && !addrCell.text().isBlank()) {
+                address = addrCell.text().trim();
+            }
+        }
+
+        // currentApplicants from "신청 X / 모집 Y"
+        Integer currentApplicants = null;
+        Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(fullText);
+        if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     private CrawledCampaign parseItem(Element item, CrawlingSource source) {

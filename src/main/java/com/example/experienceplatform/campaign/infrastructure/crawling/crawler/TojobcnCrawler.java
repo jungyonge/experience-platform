@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class TojobcnCrawler implements CampaignCrawler {
 
@@ -29,13 +31,16 @@ public class TojobcnCrawler implements CampaignCrawler {
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final DetailPageEnricher enricher;
 
     public TojobcnCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                           RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                           RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                           DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -64,11 +69,10 @@ public class TojobcnCrawler implements CampaignCrawler {
                 String url = BOARD_URL + "&page=" + page;
                 Document doc = jsoupClient.fetch(url);
 
-                // Gnuboard 기반 게시판 - 테이블 행 또는 리스트 구조
-                Elements rows = doc.select("tr");
+                // Gnuboard 기반 게시판 - list-item 구조
+                Elements rows = doc.select("li.list-item:not(.bg-light)");
                 if (rows.isEmpty()) {
-                    // Owl Carousel 기반 아이템 구조 시도
-                    rows = doc.select(".item-box, .owl-item");
+                    rows = doc.select("li.list-item");
                 }
 
                 boolean foundAny = false;
@@ -92,15 +96,58 @@ public class TojobcnCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("TOJOBCN 크롤링 완료: {}건", results.size());
         return results;
     }
 
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from meta or gnuboard #bo_v_con
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[name=description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+        if (description == null || description.isBlank()) {
+            Element viewCon = doc.selectFirst("#bo_v_con");
+            if (viewCon != null) {
+                String text = viewCon.text().trim();
+                description = text.length() > 500 ? text.substring(0, 500) : text;
+            }
+        }
+
+        // detailContent from gnuboard #bo_v_con or .view-content
+        String detailContent = null;
+        Element viewConEl = doc.selectFirst("#bo_v_con");
+        if (viewConEl == null) viewConEl = doc.selectFirst(".view-content");
+        if (viewConEl != null) detailContent = viewConEl.html();
+
+        // reward from post body text containing "지원금" or "제공"
+        String reward = null;
+        String fullText = viewConEl != null ? viewConEl.text() : doc.text();
+        Matcher rewardMatcher = Pattern.compile("지원금[:\\s]*([^\\n]{1,100})").matcher(fullText);
+        if (rewardMatcher.find()) {
+            reward = rewardMatcher.group(1).trim();
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
+    }
+
     public CrawledCampaign parseItem(Element row, CrawlingSource source) {
-        // 게시글 링크 추출 - wr_id 패턴
-        Element link = row.selectFirst("a[href*=wr_id]");
+        // 게시글 링크 추출 - a.item-subject 또는 wr_id 패턴
+        Element link = row.selectFirst("a.item-subject");
         if (link == null) {
-            link = row.selectFirst("a[href*=gonggo_blog]");
+            link = row.selectFirst("a[href*=wr_id]");
         }
         if (link == null) return null;
 
@@ -126,21 +173,16 @@ public class TojobcnCrawler implements CampaignCrawler {
         String originalUrl = href.startsWith("http") ? href :
                 BASE_URL + (href.startsWith("/") ? href : "/" + href);
 
-        // 날짜 추출 (게시판 날짜 컬럼)
-        Elements tds = row.select("td");
-        String dateText = null;
-        for (Element td : tds) {
-            String text = td.text().trim();
-            if (text.matches("\\d{2}\\.\\d{2}") || text.matches("\\d{4}\\.\\d{2}\\.\\d{2}") ||
-                    text.contains("분 전") || text.contains("시간 전")) {
-                dateText = text;
-                break;
+        // 상태 배지 확인
+        Element tackIcon = row.selectFirst("span.tack-icon");
+        if (tackIcon != null) {
+            String tackClass = tackIcon.className();
+            if (tackClass.contains("bg-tojob_reviewer")) {
+                // 리뷰어 상태는 마감이 아님
             }
         }
 
-        // 카테고리 추출
-        Element catEl = row.selectFirst("a[href*=sca=]");
-        String categoryText = catEl != null ? catEl.text().trim() : "";
+        String categoryText = "";
 
         CampaignCategory category = CategoryMapper.map(categoryText + " " + title);
 

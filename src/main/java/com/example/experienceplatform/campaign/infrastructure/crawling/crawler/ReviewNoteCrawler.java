@@ -4,6 +4,7 @@ import com.example.experienceplatform.campaign.domain.CampaignCategory;
 import com.example.experienceplatform.campaign.domain.CampaignStatus;
 import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.nodes.Document;
@@ -30,15 +31,17 @@ public class ReviewNoteCrawler implements CampaignCrawler {
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
+    private final DetailPageEnricher enricher;
 
     public ReviewNoteCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
                              RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper, DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
     }
 
     @Override
@@ -93,8 +96,28 @@ public class ReviewNoteCrawler implements CampaignCrawler {
             }
         }
 
-        log.info("REVIEWNOTE 크롤링 완료: {}건", deduped.size());
-        return new ArrayList<>(deduped.values());
+        List<CrawledCampaign> results = new ArrayList<>(deduped.values());
+        results = enricher.enrich(results, this::parseDetailPage);
+        log.info("REVIEWNOTE 크롤링 완료: {}건", results.size());
+        return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(), campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
     }
 
     public CrawledCampaign parseItem(JsonNode item, CrawlingSource source) {

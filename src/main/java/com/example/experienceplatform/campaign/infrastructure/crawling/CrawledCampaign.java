@@ -24,6 +24,7 @@ public class CrawledCampaign {
     private final String mission;
     private final String address;
     private final String keywords;
+    private final Integer currentApplicants;
 
     public CrawledCampaign(String sourceCode, String originalId, String title,
                            String description, String detailContent, String thumbnailUrl,
@@ -31,6 +32,17 @@ public class CrawledCampaign {
                            Integer recruitCount, LocalDate applyStartDate, LocalDate applyEndDate,
                            LocalDate announcementDate, String reward, String mission,
                            String address, String keywords) {
+        this(sourceCode, originalId, title, description, detailContent, thumbnailUrl,
+                originalUrl, category, status, recruitCount, applyStartDate, applyEndDate,
+                announcementDate, reward, mission, address, keywords, null);
+    }
+
+    public CrawledCampaign(String sourceCode, String originalId, String title,
+                           String description, String detailContent, String thumbnailUrl,
+                           String originalUrl, CampaignCategory category, CampaignStatus status,
+                           Integer recruitCount, LocalDate applyStartDate, LocalDate applyEndDate,
+                           LocalDate announcementDate, String reward, String mission,
+                           String address, String keywords, Integer currentApplicants) {
         this.sourceCode = sourceCode;
         this.originalId = originalId;
         this.title = title;
@@ -48,6 +60,7 @@ public class CrawledCampaign {
         this.mission = mission;
         this.address = address;
         this.keywords = keywords;
+        this.currentApplicants = currentApplicants;
     }
 
     public String getSourceCode() { return sourceCode; }
@@ -67,4 +80,5 @@ public class CrawledCampaign {
     public String getMission() { return mission; }
     public String getAddress() { return address; }
     public String getKeywords() { return keywords; }
+    public Integer getCurrentApplicants() { return currentApplicants; }
 }

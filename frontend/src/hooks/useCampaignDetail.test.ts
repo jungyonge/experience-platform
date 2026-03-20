@@ -20,6 +20,7 @@ const mockCampaign: CampaignDetailItem = {
   status: 'RECRUITING',
   statusDisplayName: '모집중',
   recruitCount: 5,
+  currentApplicants: null,
   applyStartDate: '2026-03-01',
   applyEndDate: '2026-03-31',
   announcementDate: '2026-04-03',

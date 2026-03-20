@@ -6,6 +6,8 @@ import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -21,6 +23,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class BloglabCrawler implements CampaignCrawler {
 
@@ -35,15 +39,17 @@ public class BloglabCrawler implements CampaignCrawler {
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public BloglabCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
                           RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper, DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -68,7 +74,7 @@ public class BloglabCrawler implements CampaignCrawler {
 
         for (int page = 1; page <= properties.getMaxPagesPerSite(); page++) {
             try {
-                String url = BASE_URL + "/review_campaign_list.php?json=list&page=" + page + "&orderby=cp_id+desc";
+                String url = BASE_URL + "/campaign_list.php?json=list&page=" + page + "&orderby=cp_id+desc";
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(url))
                         .header("User-Agent", properties.getUserAgent())
@@ -97,8 +103,59 @@ public class BloglabCrawler implements CampaignCrawler {
                 break;
             }
         }
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("{} 크롤링 완료: {}건", getCrawlerType(), results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        String detailContent = null;
+        Element detailEl = doc.selectFirst("#tab1");
+        if (detailEl != null) detailContent = detailEl.html();
+
+        // reward from .it_cp_reward_cut .con
+        String reward = null;
+        Element rewardEl = doc.selectFirst(".it_cp_reward_cut .con");
+        if (rewardEl != null) reward = rewardEl.text().trim();
+
+        // address from .basic_form li containing "주소"
+        String address = null;
+        for (Element li : doc.select("ul.basic_form li")) {
+            Element titEl = li.selectFirst(".tit_basic");
+            if (titEl != null && titEl.text().contains("주소")) {
+                Element contentEl = li.selectFirst(".content");
+                if (contentEl != null) {
+                    address = contentEl.text().trim();
+                    break;
+                }
+            }
+        }
+
+        // currentApplicants from sidebar "신청 X / 모집 Y"
+        Integer currentApplicants = null;
+        Element sidebar = doc.selectFirst(".iteminfo_right_fix");
+        if (sidebar != null) {
+            Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(sidebar.text());
+            if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     private CrawledCampaign parseJsonItem(JsonNode item, CrawlingSource source) {
@@ -107,12 +164,12 @@ public class BloglabCrawler implements CampaignCrawler {
         if (cpId.isEmpty() || title.isEmpty()) return null;
 
         String description = item.path("cp_description").asText(null);
-        String thumbPath = item.path("cp_img_cut").asText("");
+        String thumbPath = item.path("cp_img").asText("");
         String thumbnailUrl = thumbPath.isEmpty() ? null :
                 (thumbPath.startsWith("http") ? thumbPath : BASE_URL + "/" + thumbPath.replaceFirst("^\\./", ""));
-        String originalUrl = BASE_URL + "/review_campaign.php?cp_id=" + cpId;
+        String originalUrl = BASE_URL + "/campaign.php?cp_id=" + cpId;
 
-        String type = item.path("cp_type_cut").asText("");
+        String type = item.path("cp_type").asText("");
         String dayText = item.path("cp_day").asText("");
 
         LocalDate applyEndDate = null;
@@ -126,8 +183,8 @@ public class BloglabCrawler implements CampaignCrawler {
             }
         }
 
-        Integer recruitCount = parseIntSafe(item.path("cp_recruit_cut").asText(null));
-        String reward = item.path("cp_reward_cut").asText(null);
+        Integer recruitCount = parseIntSafe(item.path("cp_recruit").asText(null));
+        String reward = item.path("cp_point").asText(null);
 
         CampaignCategory category = CategoryMapper.map(title + " " + type);
 

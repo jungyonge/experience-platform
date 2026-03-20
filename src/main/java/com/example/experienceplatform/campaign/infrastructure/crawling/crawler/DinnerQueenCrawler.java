@@ -4,6 +4,7 @@ import com.example.experienceplatform.campaign.domain.CampaignCategory;
 import com.example.experienceplatform.campaign.domain.CampaignStatus;
 import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
@@ -38,12 +39,14 @@ public class DinnerQueenCrawler implements CampaignCrawler {
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public DinnerQueenCrawler(CrawlingProperties properties, CrawlingDelayHandler delayHandler,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper, DetailPageEnricher enricher) {
         this.properties = properties;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -111,8 +114,47 @@ public class DinnerQueenCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("DINNERQUEEN 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[name=description]");
+        if (metaDesc == null) metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        Integer currentApplicants = null;
+        Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(doc.text());
+        if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+
+        Integer recruitCount = null;
+        Matcher rm = Pattern.compile("모집\\s*(\\d+)").matcher(doc.text());
+        if (rm.find()) recruitCount = Integer.parseInt(rm.group(1));
+
+        String reward = null;
+        for (Element el : doc.select("th, dt, .label")) {
+            if (el.text().contains("제공") || el.text().contains("혜택")) {
+                Element sibling = el.nextElementSibling();
+                if (sibling != null) {
+                    reward = sibling.text().trim();
+                    break;
+                }
+            }
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                coalesce(campaign.getRecruitCount(), recruitCount), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                campaign.getAddress(), campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     public CrawledCampaign parseItem(Element card, Document fullDoc, CrawlingSource source) {

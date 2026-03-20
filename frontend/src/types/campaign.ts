@@ -10,6 +10,7 @@ export interface CampaignItem {
   status: string
   statusDisplayName: string
   recruitCount: number | null
+  currentApplicants: number | null
   applyEndDate: string | null
 }
 
@@ -27,6 +28,7 @@ export interface CampaignDetailItem {
   status: string
   statusDisplayName: string
   recruitCount: number | null
+  currentApplicants: number | null
   applyStartDate: string | null
   applyEndDate: string | null
   announcementDate: string | null

@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class LinkTubeCrawler implements CampaignCrawler {
 
@@ -28,13 +30,16 @@ public class LinkTubeCrawler implements CampaignCrawler {
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final DetailPageEnricher enricher;
 
     public LinkTubeCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                            RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                            RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                            DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -82,8 +87,40 @@ public class LinkTubeCrawler implements CampaignCrawler {
             log.error("LINKTUBE 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("LINKTUBE 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from og:description or .order-info
+        String description = null;
+        Element metaOgDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaOgDesc != null) description = metaOgDesc.attr("content");
+
+        // reward from "협찬 정보" section or .tit-info
+        String reward = null;
+        for (Element el : doc.select(".tit-info, .order-info span, .order-info div")) {
+            String text = el.text().trim();
+            if (text.contains("상당") || text.contains("제공") || text.contains("원")) {
+                reward = text;
+                break;
+            }
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
     }
 
     public CrawledCampaign parseItem(Element item, CrawlingSource source) {
@@ -114,19 +151,22 @@ public class LinkTubeCrawler implements CampaignCrawler {
             title = title.substring(0, 100).trim();
         }
 
-        // 썸네일 - 투명 이미지 placeholder가 아닌 실제 이미지
+        // 썸네일 - img.thumb의 style background-image에서 추출 (src는 placeholder)
         String thumbnailUrl = null;
-        Element img = item.selectFirst("img");
+        Element img = item.selectFirst("img.thumb");
         if (img != null) {
-            String src = img.attr("src");
-            if (!src.isEmpty() && !src.contains("img_transparent")) {
-                thumbnailUrl = src.startsWith("http") ? src : BASE_URL + src;
+            String style = img.attr("style");
+            if (style != null && style.contains("background-image")) {
+                java.util.regex.Matcher bgMatcher = java.util.regex.Pattern
+                        .compile("url\\(['\"]?([^'\"\\)]+)['\"]?\\)").matcher(style);
+                if (bgMatcher.find()) {
+                    thumbnailUrl = bgMatcher.group(1);
+                }
             }
-            // data-src 확인
             if (thumbnailUrl == null) {
-                String dataSrc = img.attr("data-src");
-                if (dataSrc != null && !dataSrc.isEmpty()) {
-                    thumbnailUrl = dataSrc.startsWith("http") ? dataSrc : BASE_URL + dataSrc;
+                String src = img.attr("src");
+                if (!src.isEmpty() && !src.contains("img_transparent")) {
+                    thumbnailUrl = src.startsWith("http") ? src : BASE_URL + src;
                 }
             }
         }

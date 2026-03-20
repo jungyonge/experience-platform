@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class ReviewPlaceCrawler implements CampaignCrawler {
 
@@ -24,19 +26,22 @@ public class ReviewPlaceCrawler implements CampaignCrawler {
     private static final String BASE_URL = "https://reviewplace.co.kr";
     private static final Pattern ID_PATTERN = Pattern.compile("id=(\\d+)");
     private static final Pattern RECRUIT_PATTERN = Pattern.compile("/\\s*(\\d+)명");
-    private static final Pattern DDAY_PATTERN = Pattern.compile("D-(\\d+)");
+    private static final Pattern DDAY_PATTERN = Pattern.compile("D\\s*-\\s*(\\d+)");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final DetailPageEnricher enricher;
 
     public ReviewPlaceCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                              RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                              RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                              DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -76,8 +81,77 @@ public class ReviewPlaceCrawler implements CampaignCrawler {
             log.error("REVIEWPLACE 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("REVIEWPLACE 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from meta or .textArea
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[name=description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+        if (description == null || description.isBlank()) {
+            Element txtEl = doc.selectFirst(".textArea");
+            if (txtEl != null) description = txtEl.text().trim();
+        }
+
+        // reward from dl/dt containing "제공내역" -> dd
+        String reward = null;
+        for (Element dt : doc.select("dt")) {
+            if (dt.text().contains("제공내역")) {
+                Element dd = dt.nextElementSibling();
+                if (dd != null && dd.tagName().equals("dd")) {
+                    reward = dd.text().trim();
+                }
+                break;
+            }
+        }
+
+        // announcementDate from dl/dt containing "리뷰어발표" -> dd
+        LocalDate announcementDate = null;
+        for (Element dt : doc.select("dt")) {
+            if (dt.text().contains("리뷰어발표") || dt.text().contains("발표")) {
+                Element dd = dt.nextElementSibling();
+                if (dd != null && dd.tagName().equals("dd")) {
+                    Matcher dm = Pattern.compile("(\\d{2})\\.(\\d{2})").matcher(dd.text());
+                    if (dm.find()) {
+                        try {
+                            announcementDate = LocalDate.now()
+                                    .withMonth(Integer.parseInt(dm.group(1)))
+                                    .withDayOfMonth(Integer.parseInt(dm.group(2)));
+                        } catch (Exception ignored) {}
+                    }
+                }
+                break;
+            }
+        }
+
+        // currentApplicants from "신청한 리뷰어 X/Y" pattern
+        Integer currentApplicants = null;
+        Matcher m = Pattern.compile("신청한\\s*리뷰어\\s*(\\d+)").matcher(doc.text());
+        if (m.find()) {
+            currentApplicants = Integer.parseInt(m.group(1));
+        }
+        if (currentApplicants == null) {
+            Matcher m2 = Pattern.compile("신청\\s*(\\d+)").matcher(doc.text());
+            if (m2.find()) currentApplicants = Integer.parseInt(m2.group(1));
+        }
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     public CrawledCampaign parseItem(Element item, CrawlingSource source) {

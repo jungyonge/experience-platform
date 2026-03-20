@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class CometoplayCrawler implements CampaignCrawler {
 
@@ -30,13 +32,16 @@ public class CometoplayCrawler implements CampaignCrawler {
     private final JsoupClient jsoupClient;
     private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final DetailPageEnricher enricher;
 
     public CometoplayCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                             RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                             RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
+                             DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
         this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.enricher = enricher;
     }
 
     @Override
@@ -62,7 +67,7 @@ public class CometoplayCrawler implements CampaignCrawler {
 
         try {
             Document doc = jsoupClient.fetch(BASE_URL + "/item_list.php");
-            Elements items = doc.select("div.item_box_list ul li");
+            Elements items = doc.select("div.item_box_list li, div.item_box_list div:has(span.it_name)");
 
             for (Element item : items) {
                 try {
@@ -76,8 +81,63 @@ public class CometoplayCrawler implements CampaignCrawler {
             log.error("COMETOPLAY 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("COMETOPLAY 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // description from .itdes or meta
+        String description = null;
+        Element descEl = doc.selectFirst(".itdes");
+        if (descEl != null) description = descEl.text().trim();
+        if (description == null || description.isBlank()) {
+            Element metaDesc = doc.selectFirst("meta[name=description]");
+            if (metaDesc != null) description = metaDesc.attr("content");
+        }
+
+        // reward from .etc_list2 containing "제공내역"
+        String reward = null;
+        for (Element el : doc.select(".etc_list2")) {
+            Element titEl = el.selectFirst(".tit_etc2");
+            if (titEl != null && titEl.text().contains("제공내역")) {
+                Element valEl = el.selectFirst(".etc2");
+                if (valEl != null) reward = valEl.text().trim();
+                break;
+            }
+        }
+
+        // address from .campain_info containing "업체주소"
+        String address = null;
+        for (Element li : doc.select("li.campain_info")) {
+            Element titEl = li.selectFirst("span.tit");
+            if (titEl != null && titEl.text().contains("주소")) {
+                Element infoEl = li.selectFirst("span.info");
+                if (infoEl != null) {
+                    address = infoEl.text().trim();
+                    break;
+                }
+            }
+        }
+
+        // currentApplicants from "신청인원 X / 모집인원 Y"
+        Integer currentApplicants = null;
+        Matcher m = Pattern.compile("신청인원\\s*(\\d+)").matcher(doc.text());
+        if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
+        );
     }
 
     public CrawledCampaign parseItem(Element item, CrawlingSource source) {

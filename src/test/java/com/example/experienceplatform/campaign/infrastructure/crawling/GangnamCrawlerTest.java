@@ -32,7 +32,7 @@ class GangnamCrawlerTest {
         Document doc = loadFixture("crawling/gangnam_sample.html");
         CrawlingProperties props = mock(CrawlingProperties.class);
         when(props.isMockEnabled()).thenReturn(true);
-        GangnamCrawler crawler = new GangnamCrawler(props, null, null, null);
+        GangnamCrawler crawler = new GangnamCrawler(props, null, null, null, null);
 
         Elements items = doc.select("li:has(a[href*=/cp/?id=])");
         List<CrawledCampaign> results = new ArrayList<>();
@@ -66,7 +66,7 @@ class GangnamCrawlerTest {
     void mockData() {
         CrawlingProperties props = mock(CrawlingProperties.class);
         when(props.isMockEnabled()).thenReturn(true);
-        GangnamCrawler crawler = new GangnamCrawler(props, null, null, null);
+        GangnamCrawler crawler = new GangnamCrawler(props, null, null, null, null);
 
         List<CrawledCampaign> results = crawler.crawl(GANGNAM_SOURCE);
 

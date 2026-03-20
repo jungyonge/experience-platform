@@ -4,38 +4,54 @@ import com.example.experienceplatform.campaign.domain.CampaignCategory;
 import com.example.experienceplatform.campaign.domain.CampaignStatus;
 import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class FourblogCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(FourblogCrawler.class);
     private static final String BASE_URL = "https://4blog.net";
-    private static final Pattern CID_PATTERN = Pattern.compile("/campaign/(\\d+)/?");
-    private static final Pattern DDAY_PATTERN = Pattern.compile("D-(\\d+)");
+    private static final String API_URL = BASE_URL + "/loadMoreDataCategory";
+    private static final String CDN_URL = "https://d3oxv6xcx9d0j1.cloudfront.net/public/pr/";
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
-    private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public FourblogCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                            RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                            CrawlingDelayHandler delayHandler, ObjectMapper objectMapper,
+                            DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
-        this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.objectMapper = objectMapper;
+        this.enricher = enricher;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     @Override
@@ -52,30 +68,30 @@ public class FourblogCrawler implements CampaignCrawler {
     }
 
     private List<CrawledCampaign> crawlReal(CrawlingSource source) {
-        if (!robotsTxtChecker.isAllowed(BASE_URL, "/")) {
-            log.warn("FOURBLOG robots.txt에 의해 크롤링이 차단되었습니다.");
-            return List.of();
-        }
-
         List<CrawledCampaign> results = new ArrayList<>();
 
         try {
-            // 4blog.net 메인 페이지에서 캠페인 카드를 파싱
-            // 카드 구조: a.nounderline > div.mainbox > div.main-img-div + div.camp-description
-            // AJAX 엔드포인트 /loadMoreDataCategory도 있지만 POST 파라미터가 필요
-            Document doc = jsoupClient.fetch(BASE_URL);
+            String url = API_URL + "?offset=0&limit=300&category=blog&category1=&location=&search=";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Accept", "application/json")
+                    .header("User-Agent", properties.getUserAgent())
+                    .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                    .GET()
+                    .build();
 
-            // 캠페인 카드 링크 - /campaign/{CID}/ 패턴
-            Elements cards = doc.select("a.nounderline[href*=/campaign/]");
-
-            if (cards.isEmpty()) {
-                // Fallback: 모든 캠페인 링크 탐색
-                cards = doc.select("a[href*=/campaign/]");
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.error("FOURBLOG API 응답 오류: HTTP {}", response.statusCode());
+                return results;
             }
 
-            for (Element card : cards) {
+            JsonNode root = objectMapper.readTree(response.body());
+            if (!root.isArray()) return results;
+
+            for (JsonNode item : root) {
                 try {
-                    CrawledCampaign campaign = parseCard(card, source);
+                    CrawledCampaign campaign = parseItem(item, source);
                     if (campaign != null) results.add(campaign);
                 } catch (Exception e) {
                     log.warn("FOURBLOG 아이템 파싱 실패: {}", e.getMessage());
@@ -85,88 +101,60 @@ public class FourblogCrawler implements CampaignCrawler {
             log.error("FOURBLOG 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("FOURBLOG 크롤링 완료: {}건", results.size());
         return results;
     }
 
-    public CrawledCampaign parseCard(Element card, CrawlingSource source) {
-        String href = card.attr("href");
-        Matcher idMatcher = CID_PATTERN.matcher(href);
-        if (!idMatcher.find()) return null;
-        String originalId = idMatcher.group(1);
-
-        String originalUrl = href.startsWith("http") ? href : BASE_URL + href;
-
-        // 캠페인명 추출 - .camp-name 또는 camp-description 내부 텍스트
-        String title = "";
-        Element nameEl = card.selectFirst(".camp-name");
-        if (nameEl != null) {
-            title = nameEl.text().trim();
-        }
-        if (title.isEmpty()) {
-            Element descEl = card.selectFirst(".camp-description");
-            if (descEl != null) title = descEl.text().trim();
-        }
-        if (title.isEmpty()) title = card.text().trim();
-        if (title.isEmpty() || title.length() < 3) return null;
-
-        // 썸네일 추출 - CloudFront CDN
-        String thumbnailUrl = null;
-        Element img = card.selectFirst(".main-img-div img");
-        if (img == null) img = card.selectFirst("img");
-        if (img != null) {
-            String src = img.attr("src");
-            if (!src.isEmpty() && !src.contains("img_transparent")) {
-                thumbnailUrl = src.startsWith("http") ? src : BASE_URL + src;
-            }
-            // data-src 또는 lazy-load 속성 확인
-            if (thumbnailUrl == null) {
-                String dataSrc = img.attr("data-src");
-                if (!dataSrc.isEmpty()) {
-                    thumbnailUrl = dataSrc.startsWith("http") ? dataSrc : BASE_URL + dataSrc;
-                }
-            }
-        }
-
-        // D-day 추출 - .remainDate
-        LocalDate applyEndDate = null;
-        CampaignStatus status = CampaignStatus.RECRUITING;
-        Element remainEl = card.selectFirst(".remainDate");
-        if (remainEl != null) {
-            String remainText = remainEl.text().trim();
-            Matcher ddayMatcher = DDAY_PATTERN.matcher(remainText);
-            if (ddayMatcher.find()) {
-                int daysLeft = Integer.parseInt(ddayMatcher.group(1));
-                applyEndDate = LocalDate.now().plusDays(daysLeft);
-            }
-            if (remainText.contains("오늘마감") || remainText.contains("D-0")) {
-                applyEndDate = LocalDate.now();
-            }
-            if (remainText.contains("D+")) {
-                status = CampaignStatus.CLOSED;
-            }
-        }
-
-        // 카테고리 배지 - .label
-        String categoryText = "";
-        Elements labels = card.select(".label");
-        List<String> tags = new ArrayList<>();
-        for (Element label : labels) {
-            String labelText = label.text().trim();
-            if (!labelText.isEmpty()) {
-                tags.add(labelText);
-                categoryText += " " + labelText;
-            }
-        }
-
-        CampaignCategory category = CategoryMapper.map(categoryText + " " + title);
-        String keywords = tags.isEmpty() ? "포블로그,체험단" : String.join(",", tags) + ",포블로그,체험단";
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // 4blog is a React SPA - content loads via client-side JS, not available in Jsoup HTML
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
 
         return new CrawledCampaign(
-                source.getCode(), originalId, title, null, null,
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
+    }
+
+    private CrawledCampaign parseItem(JsonNode item, CrawlingSource source) {
+        String cid = item.path("CID").asText("");
+        String title = item.path("CAMPAIGN_NM").asText("").trim();
+        if (cid.isEmpty() || title.isEmpty()) return null;
+
+        String originalUrl = BASE_URL + "/campaign/" + cid + "/";
+
+        String prid = item.path("PRID").asText("");
+        String imgKey = item.path("IMGKEY").asText("");
+        String thumbnailUrl = (prid.isEmpty() || imgKey.isEmpty()) ? null :
+                CDN_URL + prid + "/thumbnail/" + imgKey;
+
+        int reviewerCnt = item.path("REVIEWER_CNT").asInt(0);
+        String benefit = item.path("REVIEWER_BENEFIT").asText(null);
+        String category1 = item.path("CATEGORY1").asText("");
+        String keyword = item.path("KEYWORD").asText("");
+
+        int remainDate = item.path("REMAINDATE").asInt(0);
+        LocalDate applyEndDate = remainDate > 0 ? LocalDate.now().plusDays(remainDate) : null;
+        CampaignStatus status = remainDate >= 0 ? CampaignStatus.RECRUITING : CampaignStatus.CLOSED;
+
+        CampaignCategory category = CategoryMapper.map(title + " " + category1 + " " + keyword);
+
+        return new CrawledCampaign(
+                source.getCode(), cid, title, null, null,
                 thumbnailUrl, originalUrl, category, status,
-                null, null, applyEndDate, null,
-                null, "블로그 리뷰 작성", null, keywords
+                reviewerCnt > 0 ? reviewerCnt : null, null, applyEndDate, null,
+                benefit, "블로그 리뷰 작성", null, "포블로그,체험단"
         );
     }
 
@@ -185,13 +173,8 @@ public class FourblogCrawler implements CampaignCrawler {
                     "포블로그 체험단 설명 " + i, null,
                     "https://placehold.co/300x200?text=FOURBLOG+" + i,
                     BASE_URL + "/campaign/" + i,
-                    cat, status,
-                    3 + i % 6,
-                    today.minusDays(3),
-                    today.plusDays(5 + i), null,
-                    "제공 내역 " + i,
-                    "블로그 리뷰 작성",
-                    null,
+                    cat, status, 3 + i % 6, today.minusDays(3), today.plusDays(5 + i), null,
+                    "제공 내역 " + i, "블로그 리뷰 작성", null,
                     cat.getDisplayName() + ",포블로그,체험단"
             ));
         }

@@ -4,8 +4,11 @@ import com.example.experienceplatform.campaign.domain.CampaignCategory;
 import com.example.experienceplatform.campaign.domain.CampaignStatus;
 import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,13 +32,15 @@ public class CherivuCrawler implements CampaignCrawler {
     private final CrawlingProperties properties;
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
+    private final DetailPageEnricher enricher;
     private final HttpClient httpClient;
 
     public CherivuCrawler(CrawlingProperties properties, CrawlingDelayHandler delayHandler,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper, DetailPageEnricher enricher) {
         this.properties = properties;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -98,8 +103,27 @@ public class CherivuCrawler implements CampaignCrawler {
             }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("CHERIVU 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
+
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(), campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
     }
 
     private CrawledCampaign parseCampaign(JsonNode campaign, CrawlingSource source) {

@@ -4,38 +4,54 @@ import com.example.experienceplatform.campaign.domain.CampaignCategory;
 import com.example.experienceplatform.campaign.domain.CampaignStatus;
 import com.example.experienceplatform.campaign.domain.CrawlingSource;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class WhogiupCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(WhogiupCrawler.class);
     private static final String BASE_URL = "https://www.whogiup.com";
+    private static final String API_URL = BASE_URL + "/api/list";
+    private static final String[] TYPES = {"region", "product"};
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
-    private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
-
-    private int campaignIndex = 0;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public WhogiupCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                           RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler) {
+                           CrawlingDelayHandler delayHandler, ObjectMapper objectMapper,
+                           DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
-        this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
+        this.objectMapper = objectMapper;
+        this.enricher = enricher;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     @Override
@@ -52,93 +68,100 @@ public class WhogiupCrawler implements CampaignCrawler {
     }
 
     private List<CrawledCampaign> crawlReal(CrawlingSource source) {
-        if (!robotsTxtChecker.isAllowed(BASE_URL, "/")) {
-            log.warn("WHOGIUP robots.txt에 의해 크롤링이 차단되었습니다.");
-            return List.of();
-        }
-
         List<CrawledCampaign> results = new ArrayList<>();
-        campaignIndex = 0;
 
-        try {
-            Document doc = jsoupClient.fetch(BASE_URL);
+        for (String type : TYPES) {
+            try {
+                String body = objectMapper.writeValueAsString(
+                        java.util.Map.of("type", type, "subcategory", "전체", "region", "전체", "place", 0, "sort", 0));
 
-            // 후기업 사이트 - 메인 페이지에서 캠페인 섹션 탐색
-            // 캠페인 카드 또는 리스트 아이템
-            Elements items = doc.select(".campaign-card, .card, .item, a[href*=campaign]:has(img)");
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(API_URL))
+                        .header("Content-Type", "application/json")
+                        .header("Accept", "application/json")
+                        .header("X-Requested-With", "XMLHttpRequest")
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .build();
 
-            if (items.isEmpty()) {
-                // Fallback: 이미지 포함 링크 탐색
-                items = doc.select("a[href]:has(img)");
-            }
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) continue;
 
-            for (Element item : items) {
-                try {
-                    CrawledCampaign campaign = parseItem(item, source);
-                    if (campaign != null) results.add(campaign);
-                } catch (Exception e) {
-                    log.warn("WHOGIUP 아이템 파싱 실패: {}", e.getMessage());
+                JsonNode root = objectMapper.readTree(response.body());
+                if (!root.isArray()) continue;
+
+                for (JsonNode item : root) {
+                    try {
+                        CrawledCampaign campaign = parseItem(item, source);
+                        if (campaign != null) results.add(campaign);
+                    } catch (Exception e) {
+                        log.warn("WHOGIUP 아이템 파싱 실패: {}", e.getMessage());
+                    }
                 }
+                delayHandler.delay();
+            } catch (Exception e) {
+                log.error("WHOGIUP {} 크롤링 실패: {}", type, e.getMessage());
             }
-
-            if (results.isEmpty()) {
-                log.info("WHOGIUP 사이트에서 캠페인 데이터를 추출할 수 없습니다. HTML 구조가 동적 로딩 또는 인증이 필요할 수 있습니다.");
-            }
-        } catch (Exception e) {
-            log.error("WHOGIUP 크롤링 실패: {}", e.getMessage());
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("WHOGIUP 크롤링 완료: {}건", results.size());
         return results;
     }
 
-    private CrawledCampaign parseItem(Element item, CrawlingSource source) {
-        String href;
-        if (item.tagName().equals("a")) {
-            href = item.attr("href");
-        } else {
-            Element link = item.selectFirst("a[href]");
-            if (link == null) return null;
-            href = link.attr("href");
-        }
-        if (href.isEmpty() || href.equals("#") || href.equals("/")) return null;
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // Whogiup is a React SPA - content loads via client-side JS, not available in Jsoup HTML
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
 
-        String originalUrl = href.startsWith("http") ? href : BASE_URL + href;
+        return new CrawledCampaign(
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
+        );
+    }
 
-        // 제목 추출
-        String title = "";
-        Element titleEl = item.selectFirst(".title, h3, h4, strong, .name, .campaign-title");
-        if (titleEl != null) title = titleEl.text().trim();
-        if (title.isEmpty()) title = item.attr("title");
-        if (title.isEmpty()) {
-            Element img = item.selectFirst("img");
-            if (img != null) title = img.attr("alt").trim();
-        }
-        if (title.isEmpty() || title.length() < 3) return null;
+    private CrawledCampaign parseItem(JsonNode item, CrawlingSource source) {
+        String campaignId = item.path("campaign_id").asText("");
+        String title = item.path("title").asText("").trim();
+        if (campaignId.isEmpty() || title.isEmpty()) return null;
 
-        // 썸네일
-        Element img = item.selectFirst("img");
-        String thumbnailUrl = null;
-        if (img != null) {
-            thumbnailUrl = img.attr("src");
-            if (thumbnailUrl.isEmpty()) thumbnailUrl = img.attr("data-src");
-            if (thumbnailUrl != null && thumbnailUrl.startsWith("//")) {
-                thumbnailUrl = "https:" + thumbnailUrl;
-            } else if (thumbnailUrl != null && !thumbnailUrl.isEmpty() && !thumbnailUrl.startsWith("http")) {
-                thumbnailUrl = BASE_URL + thumbnailUrl;
+        String originalUrl = BASE_URL + "/details?idx=" + campaignId;
+        String thumbnailUrl = item.path("thumbnail_path").asText(null);
+
+        int requiredNum = item.path("required_num").asInt(0);
+        String product = item.path("product").asText(null);
+        String subcategory = item.path("subcategory").asText("");
+        boolean ended = item.path("ended").asBoolean(false);
+
+        LocalDate applyEndDate = null;
+        String regEnd = item.path("re").asText("");
+        if (!regEnd.isEmpty()) {
+            try {
+                applyEndDate = LocalDate.parse(regEnd);
+            } catch (Exception e) {
+                log.debug("WHOGIUP 날짜 파싱 실패: {}", regEnd);
             }
         }
 
-        campaignIndex++;
-        String originalId = "whogiup-" + campaignIndex;
-
-        CampaignCategory category = CategoryMapper.map(title);
+        CampaignStatus status = ended ? CampaignStatus.CLOSED : CampaignStatus.RECRUITING;
+        CampaignCategory category = CategoryMapper.map(subcategory + " " + title);
 
         return new CrawledCampaign(
-                source.getCode(), originalId, title, null, null,
-                thumbnailUrl, originalUrl, category, CampaignStatus.RECRUITING,
-                null, null, null, null,
-                null, "블로그 리뷰 작성", null, "후기업,체험단"
+                source.getCode(), campaignId, title, null, null,
+                thumbnailUrl, originalUrl, category, status,
+                requiredNum > 0 ? requiredNum : null, null, applyEndDate, null,
+                product, "블로그 리뷰 작성", null, "후기업,체험단"
         );
     }
 
@@ -157,13 +180,8 @@ public class WhogiupCrawler implements CampaignCrawler {
                     "후기업 체험단 설명 " + i, null,
                     "https://placehold.co/300x200?text=WHOGIUP+" + i,
                     BASE_URL + "/campaign/" + i,
-                    cat, status,
-                    3 + i % 6,
-                    today.minusDays(3),
-                    today.plusDays(5 + i), null,
-                    "제공 내역 " + i,
-                    "블로그 리뷰 작성",
-                    null,
+                    cat, status, 3 + i % 6, today.minusDays(3), today.plusDays(5 + i), null,
+                    "제공 내역 " + i, "블로그 리뷰 작성", null,
                     cat.getDisplayName() + ",후기업,체험단"
             ));
         }

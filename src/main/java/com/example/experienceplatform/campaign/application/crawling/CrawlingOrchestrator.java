@@ -134,7 +134,8 @@ public class CrawlingOrchestrator {
                     item.getOriginalUrl(), item.getCategory(), item.getStatus(),
                     item.getRecruitCount(), item.getApplyStartDate(), item.getApplyEndDate(),
                     item.getAnnouncementDate(), item.getDetailContent(), item.getReward(),
-                    item.getMission(), item.getAddress(), item.getKeywords());
+                    item.getMission(), item.getAddress(), item.getKeywords(),
+                    item.getCurrentApplicants());
             campaignRepository.save(campaign);
             return false;
         } else {
@@ -144,7 +145,7 @@ public class CrawlingOrchestrator {
                     item.getCategory(), item.getStatus(), item.getRecruitCount(),
                     item.getApplyStartDate(), item.getApplyEndDate(), item.getAnnouncementDate(),
                     item.getDetailContent(), item.getReward(), item.getMission(),
-                    item.getAddress(), item.getKeywords());
+                    item.getAddress(), item.getKeywords(), item.getCurrentApplicants());
             try {
                 campaignRepository.save(campaign);
             } catch (DataIntegrityViolationException e) {
@@ -164,7 +165,8 @@ public class CrawlingOrchestrator {
                     campaign.getOriginalUrl(), campaign.getCategory(), CampaignStatus.CLOSED,
                     campaign.getRecruitCount(), campaign.getApplyStartDate(), campaign.getApplyEndDate(),
                     campaign.getAnnouncementDate(), campaign.getDetailContent(), campaign.getReward(),
-                    campaign.getMission(), campaign.getAddress(), campaign.getKeywords());
+                    campaign.getMission(), campaign.getAddress(), campaign.getKeywords(),
+                    campaign.getCurrentApplicants());
             campaignRepository.save(campaign);
         }
         if (!expired.isEmpty()) {

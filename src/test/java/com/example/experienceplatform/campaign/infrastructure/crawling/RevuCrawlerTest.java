@@ -30,7 +30,7 @@ class RevuCrawlerTest {
         Document doc = loadFixture("crawling/revu_sample.html");
         CrawlingProperties props = mock(CrawlingProperties.class);
         when(props.isMockEnabled()).thenReturn(true);
-        RevuCrawler crawler = new RevuCrawler(props, null, null, null);
+        RevuCrawler crawler = new RevuCrawler(props, null, null, null, null);
 
         Elements items = doc.select(".campaign-item, .card-item, article");
         List<CrawledCampaign> results = new ArrayList<>();
@@ -49,7 +49,7 @@ class RevuCrawlerTest {
     void mockData() {
         CrawlingProperties props = mock(CrawlingProperties.class);
         when(props.isMockEnabled()).thenReturn(true);
-        RevuCrawler crawler = new RevuCrawler(props, null, null, null);
+        RevuCrawler crawler = new RevuCrawler(props, null, null, null, null);
 
         List<CrawledCampaign> results = crawler.crawl(REVU_SOURCE);
 

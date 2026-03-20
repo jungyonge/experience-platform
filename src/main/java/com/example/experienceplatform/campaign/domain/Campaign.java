@@ -70,6 +70,8 @@ public class Campaign {
     @Column(length = 500)
     private String keywords;
 
+    private Integer currentApplicants;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -105,6 +107,18 @@ public class Campaign {
                     LocalDate applyEndDate, LocalDate announcementDate,
                     String detailContent, String reward, String mission,
                     String address, String keywords) {
+        this(crawlingSource, originalId, title, description, thumbnailUrl, originalUrl,
+                category, status, recruitCount, applyStartDate, applyEndDate, announcementDate,
+                detailContent, reward, mission, address, keywords, null);
+    }
+
+    public Campaign(CrawlingSource crawlingSource, String originalId, String title,
+                    String description, String thumbnailUrl, String originalUrl,
+                    CampaignCategory category, CampaignStatus status,
+                    Integer recruitCount, LocalDate applyStartDate,
+                    LocalDate applyEndDate, LocalDate announcementDate,
+                    String detailContent, String reward, String mission,
+                    String address, String keywords, Integer currentApplicants) {
         this.crawlingSource = crawlingSource;
         this.originalId = originalId;
         this.title = title;
@@ -122,6 +136,7 @@ public class Campaign {
         this.mission = mission;
         this.address = address;
         this.keywords = keywords;
+        this.currentApplicants = currentApplicants;
     }
 
     @PrePersist
@@ -141,7 +156,7 @@ public class Campaign {
                        LocalDate applyStartDate, LocalDate applyEndDate,
                        LocalDate announcementDate, String detailContent,
                        String reward, String mission, String address,
-                       String keywords) {
+                       String keywords, Integer currentApplicants) {
         this.title = title;
         this.description = description;
         this.thumbnailUrl = thumbnailUrl;
@@ -157,6 +172,7 @@ public class Campaign {
         this.mission = mission;
         this.address = address;
         this.keywords = keywords;
+        this.currentApplicants = currentApplicants;
     }
 
     public String getSourceCode() {
@@ -195,6 +211,7 @@ public class Campaign {
     public String getMission() { return mission; }
     public String getAddress() { return address; }
     public String getKeywords() { return keywords; }
+    public Integer getCurrentApplicants() { return currentApplicants; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

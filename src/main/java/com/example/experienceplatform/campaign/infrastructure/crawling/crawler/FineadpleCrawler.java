@@ -7,10 +7,16 @@ import com.example.experienceplatform.campaign.infrastructure.crawling.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -19,28 +25,34 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.experienceplatform.campaign.infrastructure.crawling.DetailPageEnricher.coalesce;
+
 @Component
 public class FineadpleCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(FineadpleCrawler.class);
     private static final String BASE_URL = "https://www.fineadple.com";
-    private static final Pattern NEXT_DATA_PATTERN = Pattern.compile(
-            "<script id=\"__NEXT_DATA__\" type=\"application/json\">(.*?)</script>", Pattern.DOTALL);
+    private static final String API_URL = "https://b2c-api.fineadple.com/campaign/list";
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
-    private final RobotsTxtChecker robotsTxtChecker;
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+    private final DetailPageEnricher enricher;
 
     public FineadpleCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
-                            RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
-                            ObjectMapper objectMapper) {
+                            CrawlingDelayHandler delayHandler, ObjectMapper objectMapper,
+                            DetailPageEnricher enricher) {
         this.properties = properties;
         this.jsoupClient = jsoupClient;
-        this.robotsTxtChecker = robotsTxtChecker;
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
+        this.enricher = enricher;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     @Override
@@ -57,130 +69,105 @@ public class FineadpleCrawler implements CampaignCrawler {
     }
 
     private List<CrawledCampaign> crawlReal(CrawlingSource source) {
-        if (!robotsTxtChecker.isAllowed(BASE_URL, "/")) {
-            log.warn("FINEADPLE robots.txt에 의해 크롤링이 차단되었습니다.");
-            return List.of();
-        }
-
         List<CrawledCampaign> results = new ArrayList<>();
 
-        try {
-            // Next.js SSR 페이지에서 __NEXT_DATA__ JSON을 추출하여 캠페인 데이터 파싱
-            Document doc = jsoupClient.fetch(BASE_URL);
-            String html = doc.html();
+        for (int page = 0; page < properties.getMaxPagesPerSite(); page++) {
+            try {
+                String url = API_URL + "?page=" + page + "&size=20";
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("Accept", "application/json")
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .GET()
+                        .build();
 
-            Matcher matcher = NEXT_DATA_PATTERN.matcher(html);
-            if (!matcher.find()) {
-                log.warn("FINEADPLE __NEXT_DATA__를 찾을 수 없습니다.");
-                return results;
-            }
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) break;
 
-            String jsonStr = matcher.group(1);
-            JsonNode root = objectMapper.readTree(jsonStr);
+                JsonNode root = objectMapper.readTree(response.body());
+                JsonNode content = root.path("content");
+                if (!content.isArray() || content.isEmpty()) break;
 
-            // React Query dehydrated state에서 캠페인 데이터 추출
-            JsonNode dehydratedState = root.path("props").path("pageProps").path("dehydratedState");
-            if (dehydratedState.isMissingNode()) {
-                dehydratedState = root.path("props").path("pageProps");
-            }
-
-            JsonNode queries = dehydratedState.path("queries");
-            if (queries.isArray()) {
-                for (JsonNode query : queries) {
-                    String queryKey = query.path("queryKey").toString();
-                    if (queryKey.contains("CAMPAIGN") || queryKey.contains("campaign")) {
-                        JsonNode data = query.path("state").path("data");
-                        parseCampaignData(data, source, results);
+                for (JsonNode item : content) {
+                    try {
+                        CrawledCampaign campaign = parseItem(item, source);
+                        if (campaign != null) results.add(campaign);
+                    } catch (Exception e) {
+                        log.warn("FINEADPLE 아이템 파싱 실패: {}", e.getMessage());
                     }
                 }
-            }
 
-        } catch (Exception e) {
-            log.error("FINEADPLE 크롤링 실패: {}", e.getMessage());
+                int totalPages = root.path("totalPages").asInt(1);
+                if (page >= totalPages - 1) break;
+                if (page < properties.getMaxPagesPerSite() - 1) delayHandler.delay();
+            } catch (Exception e) {
+                log.error("FINEADPLE 페이지 {} 크롤링 실패: {}", page, e.getMessage());
+                break;
+            }
         }
 
+        results = enricher.enrich(results, this::parseDetailPage);
         log.info("FINEADPLE 크롤링 완료: {}건", results.size());
         return results;
     }
 
-    private void parseCampaignData(JsonNode data, CrawlingSource source, List<CrawledCampaign> results) {
-        // 페이지네이션 응답 구조: { content: [...], pageable: {...} }
-        JsonNode content = data.path("content");
-        if (!content.isArray()) {
-            content = data;  // 단일 배열일 수 있음
-        }
-        if (!content.isArray()) return;
-
-        for (JsonNode item : content) {
-            try {
-                CrawledCampaign campaign = parseCampaignItem(item, source);
-                if (campaign != null) results.add(campaign);
-            } catch (Exception e) {
-                log.warn("FINEADPLE 캠페인 아이템 파싱 실패: {}", e.getMessage());
-            }
-        }
-    }
-
-    private CrawledCampaign parseCampaignItem(JsonNode item, CrawlingSource source) {
-        long campaignId = item.path("campaignId").asLong(0);
-        if (campaignId == 0) return null;
-
-        String title = item.path("title").asText("");
-        if (title.isEmpty()) return null;
-
-        String originalId = String.valueOf(campaignId);
-        String mainImage = item.path("mainImage").asText(null);
-        String thumbnailUrl = mainImage;
-
-        // CloudFront CDN 이미지 URL
-        if (thumbnailUrl != null && !thumbnailUrl.startsWith("http")) {
-            thumbnailUrl = "https://d1xn9i6ytqs5tr.cloudfront.net" + thumbnailUrl;
-        }
-
-        // 캠페인 타입에 따른 URL 구성
-        String recruitmentType = item.path("recruitmentType").asText("VISIT").toLowerCase();
-        String recruitmentChannel = item.path("recruitmentChannel").asText("NAVER").toLowerCase();
-        String originalUrl = BASE_URL + "/campaign/" + recruitmentType + "/" + originalId;
-
-        // 모집 인원
-        int recruitCount = item.path("recruitmentPersonNumber").asInt(0);
-
-        // 날짜 파싱
-        LocalDate applyStartDate = parseDateTime(item.path("recruitmentStartDatetime").asText(null));
-        LocalDate applyEndDate = parseDateTime(item.path("recruitmentEndDatetime").asText(null));
-
-        // 상태 판별
-        CampaignStatus status = CampaignStatus.RECRUITING;
-        if (applyEndDate != null && applyEndDate.isBefore(LocalDate.now())) {
-            status = CampaignStatus.CLOSED;
-        }
-
-        // 제공 내역
-        String offerItems = item.path("offerItems").asText(null);
-
-        // 카테고리
-        CampaignCategory category = CategoryMapper.map(title + " " + (offerItems != null ? offerItems : ""));
+    private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
+        // Fineadple is a React SPA - content loads via client-side JS, not available in Jsoup HTML
+        // Only og:description may be available from SSR
+        String description = null;
+        Element metaDesc = doc.selectFirst("meta[property=og:description]");
+        if (metaDesc != null) description = metaDesc.attr("content");
 
         return new CrawledCampaign(
-                source.getCode(), originalId, title, null, null,
-                thumbnailUrl, originalUrl, category, status,
-                recruitCount > 0 ? recruitCount : null,
-                applyStartDate, applyEndDate, null,
-                offerItems, "블로그 리뷰 작성", null, "파인앳플,체험단"
+                campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
+                coalesce(campaign.getDescription(), description),
+                campaign.getDetailContent(),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                campaign.getCategory(), campaign.getStatus(),
+                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getReward(), campaign.getMission(),
+                campaign.getAddress(),
+                campaign.getKeywords(),
+                campaign.getCurrentApplicants()
         );
     }
 
-    private LocalDate parseDateTime(String dateTimeStr) {
-        if (dateTimeStr == null || dateTimeStr.isBlank()) return null;
-        try {
-            // ISO 형식 "2024-01-15T00:00:00" 또는 유사 패턴
-            if (dateTimeStr.contains("T")) {
-                return LocalDateTime.parse(dateTimeStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME).toLocalDate();
+    private CrawledCampaign parseItem(JsonNode item, CrawlingSource source) {
+        int campaignId = item.path("campaignId").asInt(0);
+        String title = item.path("title").asText("").trim();
+        if (campaignId == 0 || title.isEmpty()) return null;
+
+        String originalId = String.valueOf(campaignId);
+        String originalUrl = BASE_URL + "/campaign/detail/" + campaignId;
+
+        String thumbnailUrl = item.path("mainImage").asText(null);
+        String offerItems = item.path("offerItems").asText(null);
+        int recruitNum = item.path("recruitmentPersonNumber").asInt(0);
+        String channel = item.path("recruitmentChannel").asText("");
+
+        LocalDate applyEndDate = null;
+        String endDateStr = item.path("recruitmentEndDatetime").asText("");
+        if (!endDateStr.isEmpty()) {
+            try {
+                applyEndDate = LocalDateTime.parse(endDateStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME).toLocalDate();
+            } catch (Exception e) {
+                try {
+                    applyEndDate = LocalDate.parse(endDateStr.substring(0, 10));
+                } catch (Exception ignored) {}
             }
-            return LocalDate.parse(dateTimeStr.substring(0, 10));
-        } catch (Exception e) {
-            return null;
         }
+
+        CampaignCategory category = CategoryMapper.map(title);
+        String mission = "INSTAGRAM".equalsIgnoreCase(channel) ? "인스타그램 리뷰 작성" : "블로그 리뷰 작성";
+
+        return new CrawledCampaign(
+                source.getCode(), originalId, title, null, null,
+                thumbnailUrl, originalUrl, category, CampaignStatus.RECRUITING,
+                recruitNum > 0 ? recruitNum : null, null, applyEndDate, null,
+                offerItems, mission, null, "파인앳플,체험단"
+        );
     }
 
     private List<CrawledCampaign> generateMockData(CrawlingSource source) {
@@ -198,13 +185,8 @@ public class FineadpleCrawler implements CampaignCrawler {
                     "파인앳플 체험단 설명 " + i, null,
                     "https://placehold.co/300x200?text=FINEADPLE+" + i,
                     BASE_URL + "/campaign/" + i,
-                    cat, status,
-                    3 + i % 6,
-                    today.minusDays(3),
-                    today.plusDays(5 + i), null,
-                    "제공 내역 " + i,
-                    "블로그 리뷰 작성",
-                    null,
+                    cat, status, 3 + i % 6, today.minusDays(3), today.plusDays(5 + i), null,
+                    "제공 내역 " + i, "블로그 리뷰 작성", null,
                     cat.getDisplayName() + ",파인앳플,체험단"
             ));
         }

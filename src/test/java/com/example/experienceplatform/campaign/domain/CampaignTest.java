@@ -49,7 +49,7 @@ class CampaignTest {
                 CampaignCategory.BEAUTY, CampaignStatus.CLOSED,
                 10, LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30),
                 LocalDate.of(2026, 5, 5),
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         assertThat(campaign.getTitle()).isEqualTo("수정된 제목");
         assertThat(campaign.getDescription()).isEqualTo("수정된 설명");
