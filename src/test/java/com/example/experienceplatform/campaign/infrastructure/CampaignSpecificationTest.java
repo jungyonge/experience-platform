@@ -28,7 +28,6 @@ class CampaignSpecificationTest {
     private CrawlingSourceSpringDataJpaRepository crawlingSourceRepository;
 
     private CrawlingSource revuSource;
-    private CrawlingSource mbleSource;
     private CrawlingSource gangnamSource;
 
     @BeforeEach
@@ -38,16 +37,14 @@ class CampaignSpecificationTest {
 
         revuSource = crawlingSourceRepository.save(
                 new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1));
-        mbleSource = crawlingSourceRepository.save(
-                new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2));
         gangnamSource = crawlingSourceRepository.save(
-                new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 3));
+                new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2));
 
         repository.save(new Campaign(revuSource, "T001", "맛집 체험단 모집", null, null,
                 "https://revu.net/1", CampaignCategory.FOOD, CampaignStatus.RECRUITING,
                 5, null, LocalDate.of(2026, 3, 25), null));
-        repository.save(new Campaign(mbleSource, "T002", "뷰티 체험단", null, null,
-                "https://mble.xyz/2", CampaignCategory.BEAUTY, CampaignStatus.RECRUITING,
+        repository.save(new Campaign(gangnamSource, "T002", "뷰티 체험단", null, null,
+                "https://gangnam.kr/2", CampaignCategory.BEAUTY, CampaignStatus.RECRUITING,
                 10, null, LocalDate.of(2026, 3, 20), null));
         repository.save(new Campaign(gangnamSource, "T003", "강남 스테이크 하우스", null, null,
                 "https://gangnam.kr/3", CampaignCategory.FOOD, CampaignStatus.CLOSED,
@@ -55,8 +52,8 @@ class CampaignSpecificationTest {
         repository.save(new Campaign(revuSource, "T004", "여행 숙박 체험", null, null,
                 "https://revu.net/4", CampaignCategory.TRAVEL, CampaignStatus.RECRUITING,
                 2, null, LocalDate.of(2026, 4, 10), null));
-        repository.save(new Campaign(mbleSource, "T005", "디지털 기기 리뷰", null, null,
-                "https://mble.xyz/5", CampaignCategory.DIGITAL, CampaignStatus.CLOSED,
+        repository.save(new Campaign(gangnamSource, "T005", "디지털 기기 리뷰", null, null,
+                "https://gangnam.kr/5", CampaignCategory.DIGITAL, CampaignStatus.CLOSED,
                 7, null, LocalDate.of(2026, 3, 10), null));
     }
 

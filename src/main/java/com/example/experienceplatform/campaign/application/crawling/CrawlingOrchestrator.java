@@ -12,10 +12,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
@@ -27,16 +31,38 @@ public class CrawlingOrchestrator {
     private final CampaignRepository campaignRepository;
     private final CrawlingSourceRepository crawlingSourceRepository;
     private final CrawlingLogRepository crawlingLogRepository;
+    private final CrawlingProperties crawlingProperties;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
+    private ExecutorService crawlingExecutor;
 
     public CrawlingOrchestrator(CrawlerRegistry crawlerRegistry,
                                 CampaignRepository campaignRepository,
                                 CrawlingSourceRepository crawlingSourceRepository,
-                                CrawlingLogRepository crawlingLogRepository) {
+                                CrawlingLogRepository crawlingLogRepository,
+                                CrawlingProperties crawlingProperties) {
         this.crawlerRegistry = crawlerRegistry;
         this.campaignRepository = campaignRepository;
         this.crawlingSourceRepository = crawlingSourceRepository;
         this.crawlingLogRepository = crawlingLogRepository;
+        this.crawlingProperties = crawlingProperties;
+    }
+
+    @PostConstruct
+    public void initExecutor() {
+        this.crawlingExecutor = Executors.newFixedThreadPool(
+                crawlingProperties.getParallelThreads(),
+                r -> {
+                    Thread t = new Thread(r, "crawling-worker");
+                    t.setDaemon(true);
+                    return t;
+                });
+    }
+
+    @PreDestroy
+    void shutdownExecutor() {
+        if (crawlingExecutor != null) {
+            crawlingExecutor.shutdown();
+        }
     }
 
     public List<CrawlingResult> executeAll() {
@@ -45,22 +71,28 @@ public class CrawlingOrchestrator {
         }
         try {
             List<CrawlingSource> activeSources = crawlingSourceRepository.findAllActiveOrderByDisplayOrder();
-            List<CrawlingResult> results = new ArrayList<>();
-            for (CrawlingSource source : activeSources) {
-                Optional<CampaignCrawler> crawlerOpt = crawlerRegistry.findByCrawlerType(source.getCrawlerType());
-                if (crawlerOpt.isEmpty()) {
-                    log.warn("매칭되는 크롤러가 없습니다: sourceCode={}, crawlerType={}",
-                            source.getCode(), source.getCrawlerType());
-                    CrawlingResult failedResult = CrawlingResult.failed(
-                            source.getCode(), source.getName(),
-                            "매칭되는 크롤러가 없습니다: " + source.getCrawlerType(), 0);
-                    saveLog(failedResult, source.getCrawlerType());
-                    results.add(failedResult);
-                    continue;
-                }
-                CrawlingResult result = executeCrawler(crawlerOpt.get(), source);
-                results.add(result);
-            }
+
+            List<CompletableFuture<CrawlingResult>> futures = activeSources.stream()
+                    .map(source -> {
+                        Optional<CampaignCrawler> crawlerOpt = crawlerRegistry.findByCrawlerType(source.getCrawlerType());
+                        if (crawlerOpt.isEmpty()) {
+                            log.warn("매칭되는 크롤러가 없습니다: sourceCode={}, crawlerType={}",
+                                    source.getCode(), source.getCrawlerType());
+                            CrawlingResult failedResult = CrawlingResult.failed(
+                                    source.getCode(), source.getName(),
+                                    "매칭되는 크롤러가 없습니다: " + source.getCrawlerType(), 0);
+                            saveLog(failedResult, source.getCrawlerType());
+                            return CompletableFuture.completedFuture(failedResult);
+                        }
+                        return CompletableFuture.supplyAsync(
+                                () -> executeCrawler(crawlerOpt.get(), source), crawlingExecutor);
+                    })
+                    .toList();
+
+            List<CrawlingResult> results = futures.stream()
+                    .map(CompletableFuture::join)
+                    .toList();
+
             closeExpiredCampaigns(LocalDate.now());
             return results;
         } finally {

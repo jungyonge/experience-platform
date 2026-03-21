@@ -30,8 +30,8 @@ class CampaignServiceSourceTest {
 
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
-    private static final CrawlingSource MBLE_SOURCE =
-            new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2);
+    private static final CrawlingSource GANGNAM_SOURCE =
+            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2);
 
     @Test
     @DisplayName("sourceCodes 문자열로 필터 검색 - 활성 소스 코드 사용")
@@ -61,12 +61,12 @@ class CampaignServiceSourceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, Set.of("REVU", "MBLE"), null, null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, Set.of("REVU", "GANGNAM"), null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond ->
                         cond.getSourceCodes().contains("REVU") &&
-                        cond.getSourceCodes().contains("MBLE")),
+                        cond.getSourceCodes().contains("GANGNAM")),
                 any(Pageable.class));
     }
 

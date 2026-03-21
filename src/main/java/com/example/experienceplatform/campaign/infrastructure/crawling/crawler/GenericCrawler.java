@@ -118,7 +118,7 @@ public class GenericCrawler implements CampaignCrawler {
 
     private List<CrawledCampaign> generateMockData(CrawlingSource source) {
         List<CrawledCampaign> mocks = new ArrayList<>();
-        for (int i = 1; i <= 5; i++) {
+        for (int i = 1; i <= properties.getMockCount(); i++) {
             mocks.add(new CrawledCampaign(
                     source.getCode(), "generic-" + source.getCode().toLowerCase() + "-" + i,
                     "[" + source.getName() + "] 체험단 캠페인 #" + i,

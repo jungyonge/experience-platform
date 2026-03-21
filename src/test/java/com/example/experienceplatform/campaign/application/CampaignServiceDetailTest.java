@@ -27,8 +27,8 @@ class CampaignServiceDetailTest {
 
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
-    private static final CrawlingSource MBLE_SOURCE =
-            new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2);
+    private static final CrawlingSource GANGNAM_SOURCE =
+            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2);
 
     @Test
     @DisplayName("정상 상세 조회")
@@ -75,9 +75,9 @@ class CampaignServiceDetailTest {
     @DisplayName("nullable 필드가 null인 데이터 매핑")
     void getDetail_nullableFields() {
         Campaign campaign = new Campaign(
-                MBLE_SOURCE, "2001",
+                GANGNAM_SOURCE, "2001",
                 "제목만 있는 캠페인", null, null,
-                "https://mble.xyz/2001",
+                "https://gangnam.kr/2001",
                 CampaignCategory.BEAUTY, CampaignStatus.CLOSED,
                 null, null, null, null);
 

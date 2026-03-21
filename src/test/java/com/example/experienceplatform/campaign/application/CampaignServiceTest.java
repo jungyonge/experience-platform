@@ -30,8 +30,8 @@ class CampaignServiceTest {
 
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
-    private static final CrawlingSource MBLE_SOURCE =
-            new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2);
+    private static final CrawlingSource GANGNAM_SOURCE =
+            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2);
 
     private Campaign createCampaign(String title, CrawlingSource source, CampaignCategory category, CampaignStatus status) {
         return new Campaign(source, "orig-" + title, title, null, null,
@@ -119,7 +119,7 @@ class CampaignServiceTest {
     @Test
     @DisplayName("CampaignSummary 변환 확인")
     void searchCampaigns_summaryMapping() {
-        Campaign c = createCampaign("뷰티 체험", MBLE_SOURCE, CampaignCategory.BEAUTY, CampaignStatus.CLOSED);
+        Campaign c = createCampaign("뷰티 체험", GANGNAM_SOURCE, CampaignCategory.BEAUTY, CampaignStatus.CLOSED);
         Page<Campaign> page = new PageImpl<>(List.of(c));
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(page);
 
@@ -127,8 +127,8 @@ class CampaignServiceTest {
                 new CampaignSearchCommand(null, null, null, null, 0, 12, "latest"));
 
         CampaignSummary summary = result.getCampaigns().get(0);
-        assertThat(summary.getSourceType()).isEqualTo("MBLE");
-        assertThat(summary.getSourceDisplayName()).isEqualTo("미블");
+        assertThat(summary.getSourceType()).isEqualTo("GANGNAM");
+        assertThat(summary.getSourceDisplayName()).isEqualTo("강남맛집");
         assertThat(summary.getCategory()).isEqualTo("BEAUTY");
         assertThat(summary.getCategoryDisplayName()).isEqualTo("뷰티");
         assertThat(summary.getStatus()).isEqualTo("CLOSED");

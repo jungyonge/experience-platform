@@ -11,10 +11,8 @@ class CampaignTest {
 
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
-    private static final CrawlingSource MBLE_SOURCE =
-            new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2);
     private static final CrawlingSource GANGNAM_SOURCE =
-            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 3);
+            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2);
 
     @Test
     @DisplayName("Campaign 생성 시 필드가 올바르게 설정됨")
@@ -63,8 +61,6 @@ class CampaignTest {
     void crawlingSource_codeAndName() {
         assertThat(REVU_SOURCE.getCode()).isEqualTo("REVU");
         assertThat(REVU_SOURCE.getName()).isEqualTo("레뷰");
-        assertThat(MBLE_SOURCE.getCode()).isEqualTo("MBLE");
-        assertThat(MBLE_SOURCE.getName()).isEqualTo("미블");
         assertThat(GANGNAM_SOURCE.getCode()).isEqualTo("GANGNAM");
         assertThat(GANGNAM_SOURCE.getName()).isEqualTo("강남맛집");
     }

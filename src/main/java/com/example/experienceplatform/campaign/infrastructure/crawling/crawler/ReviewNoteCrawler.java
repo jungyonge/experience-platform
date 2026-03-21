@@ -202,7 +202,7 @@ public class ReviewNoteCrawler implements CampaignCrawler {
                 CampaignCategory.LIFE, CampaignCategory.DIGITAL};
         LocalDate today = LocalDate.now();
 
-        for (int i = 1; i <= 12; i++) {
+        for (int i = 1; i <= properties.getMockCount(); i++) {
             CampaignCategory cat = categories[(i - 1) % categories.length];
             CampaignStatus status = i <= 10 ? CampaignStatus.RECRUITING : CampaignStatus.CLOSED;
             mocks.add(new CrawledCampaign(

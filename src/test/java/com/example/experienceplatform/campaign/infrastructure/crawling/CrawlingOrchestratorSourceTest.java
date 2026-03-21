@@ -32,14 +32,18 @@ class CrawlingOrchestratorSourceTest {
     @Mock
     private CrawlingLogRepository crawlingLogRepository;
 
+    @Mock
+    private CrawlingProperties crawlingProperties;
+
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
-    private static final CrawlingSource MBLE_SOURCE =
-            new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2);
+    private static final CrawlingSource GANGNAM_SOURCE =
+            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2);
 
     @Test
     @DisplayName("executeAll - 활성 소스만 실행, 비활성 건너뜀")
     void executeAll_activeSourcesOnly() {
+        when(crawlingProperties.getParallelThreads()).thenReturn(5);
         CrawlingSource inactiveSource = new CrawlingSource("INACTIVE", "비활성", "https://inactive.com", null, null, "INACTIVE", 99);
         inactiveSource.deactivate();
 
@@ -54,7 +58,8 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler));
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+        orchestrator.initExecutor();
 
         List<CrawlingResult> results = orchestrator.executeAll();
 
@@ -65,26 +70,28 @@ class CrawlingOrchestratorSourceTest {
     @Test
     @DisplayName("executeAll - 매칭 크롤러 없으면 FAILED 로그 저장 후 다음 소스로 진행")
     void executeAll_noCrawlerFails() {
+        when(crawlingProperties.getParallelThreads()).thenReturn(5);
         // REVU source has crawlerType "REVU" but no crawler registered for it
-        when(crawlingSourceRepository.findAllActiveOrderByDisplayOrder()).thenReturn(List.of(REVU_SOURCE, MBLE_SOURCE));
+        when(crawlingSourceRepository.findAllActiveOrderByDisplayOrder()).thenReturn(List.of(REVU_SOURCE, GANGNAM_SOURCE));
         when(campaignRepository.findExpiredRecruitingCampaigns(any())).thenReturn(List.of());
         when(crawlingLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        // Only register MBLE crawler, not REVU
-        CampaignCrawler mbleCrawler = mock(CampaignCrawler.class);
-        when(mbleCrawler.getCrawlerType()).thenReturn("MBLE");
-        when(mbleCrawler.crawl(MBLE_SOURCE)).thenReturn(List.of());
+        // Only register GANGNAM crawler, not REVU
+        CampaignCrawler gangnamCrawler = mock(CampaignCrawler.class);
+        when(gangnamCrawler.getCrawlerType()).thenReturn("GANGNAM");
+        when(gangnamCrawler.crawl(GANGNAM_SOURCE)).thenReturn(List.of());
 
-        CrawlerRegistry registry = new CrawlerRegistry(List.of(mbleCrawler));
+        CrawlerRegistry registry = new CrawlerRegistry(List.of(gangnamCrawler));
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+        orchestrator.initExecutor();
 
         List<CrawlingResult> results = orchestrator.executeAll();
 
         assertThat(results).hasSize(2);
         assertThat(results.get(0).getSourceCode()).isEqualTo("REVU");
         assertThat(results.get(0).getStatus()).isEqualTo(CrawlingLogStatus.FAILED);
-        assertThat(results.get(1).getSourceCode()).isEqualTo("MBLE");
+        assertThat(results.get(1).getSourceCode()).isEqualTo("GANGNAM");
         assertThat(results.get(1).getStatus()).isEqualTo(CrawlingLogStatus.SUCCESS);
 
         verify(crawlingLogRepository, times(2)).save(any(CrawlingLog.class));
@@ -103,7 +110,7 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler));
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
 
         CrawlingResult result = orchestrator.executeBySourceCode("REVU");
 
@@ -118,7 +125,7 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of());
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
 
         assertThatThrownBy(() -> orchestrator.executeBySourceCode("NONEXIST"))
                 .isInstanceOf(CrawlingSourceNotFoundException.class);

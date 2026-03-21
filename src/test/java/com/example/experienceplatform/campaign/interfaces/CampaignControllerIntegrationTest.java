@@ -41,7 +41,7 @@ class CampaignControllerIntegrationTest {
     @DisplayName("소스/카테고리/상태 필터 조합 - 200 OK")
     void searchCampaigns_filters() throws Exception {
         mockMvc.perform(get("/api/v1/campaigns")
-                        .param("sourceTypes", "REVU,MBLE")
+                        .param("sourceTypes", "REVU,GANGNAM")
                         .param("categories", "FOOD")
                         .param("status", "RECRUITING"))
                 .andExpect(status().isOk())

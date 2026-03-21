@@ -26,7 +26,7 @@ crawling:
   enabled: true
   mock-enabled: false
   schedule-cron: "0 0 * * * *"
-  max-pages-per-site: 5
+  max-pages-per-site: 10
   delay-min-ms: 1000
   delay-max-ms: 2000
   connection-timeout-ms: 10000
@@ -34,6 +34,7 @@ crawling:
   user-agent: "ExperiencePlatformBot/1.0 (+https://example.com/bot)"
   detail-fetch-enabled: true
   detail-fetch-delay-ms: 500
+  parallel-threads: 5
   reve-api-token: ${REVE_API_TOKEN:}
   reve-username: ${REVE_USERNAME:qjsro1204@naver.com}
   reve-password: ${REVE_PASSWORD:Wjddyd!0619}

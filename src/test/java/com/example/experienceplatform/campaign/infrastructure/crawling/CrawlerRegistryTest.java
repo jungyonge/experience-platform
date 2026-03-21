@@ -17,11 +17,11 @@ class CrawlerRegistryTest {
     @DisplayName("findByCrawlerType - 매칭되는 크롤러 반환")
     void findByCrawlerType_found() {
         CampaignCrawler revuCrawler = mock(CampaignCrawler.class);
-        CampaignCrawler mbleCrawler = mock(CampaignCrawler.class);
+        CampaignCrawler gangnamCrawler = mock(CampaignCrawler.class);
         when(revuCrawler.getCrawlerType()).thenReturn("REVU");
-        when(mbleCrawler.getCrawlerType()).thenReturn("MBLE");
+        when(gangnamCrawler.getCrawlerType()).thenReturn("GANGNAM");
 
-        CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler, mbleCrawler));
+        CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler, gangnamCrawler));
 
         Optional<CampaignCrawler> result = registry.findByCrawlerType("REVU");
 
@@ -46,17 +46,15 @@ class CrawlerRegistryTest {
     @DisplayName("getAvailableCrawlerTypes - 모든 타입 반환 (정렬됨)")
     void getAvailableCrawlerTypes() {
         CampaignCrawler revuCrawler = mock(CampaignCrawler.class);
-        CampaignCrawler mbleCrawler = mock(CampaignCrawler.class);
         CampaignCrawler gangnamCrawler = mock(CampaignCrawler.class);
         when(revuCrawler.getCrawlerType()).thenReturn("REVU");
-        when(mbleCrawler.getCrawlerType()).thenReturn("MBLE");
         when(gangnamCrawler.getCrawlerType()).thenReturn("GANGNAM");
 
-        CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler, mbleCrawler, gangnamCrawler));
+        CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler, gangnamCrawler));
 
         List<String> types = registry.getAvailableCrawlerTypes();
 
-        assertThat(types).hasSize(3);
-        assertThat(types).containsExactly("GANGNAM", "MBLE", "REVU");
+        assertThat(types).hasSize(2);
+        assertThat(types).containsExactly("GANGNAM", "REVU");
     }
 }

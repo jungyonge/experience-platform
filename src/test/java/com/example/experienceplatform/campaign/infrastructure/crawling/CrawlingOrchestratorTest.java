@@ -5,6 +5,7 @@ import com.example.experienceplatform.campaign.domain.*;
 import com.example.experienceplatform.campaign.infrastructure.crawling.log.CrawlingLog;
 import com.example.experienceplatform.campaign.infrastructure.crawling.log.CrawlingLogRepository;
 import com.example.experienceplatform.campaign.infrastructure.crawling.log.CrawlingLogStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,12 +33,20 @@ class CrawlingOrchestratorTest {
     private CrawlingLogRepository crawlingLogRepository;
 
     @Mock
+    private CrawlingProperties crawlingProperties;
+
+    @Mock
     private CampaignCrawler mockCrawler;
 
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
-    private static final CrawlingSource MBLE_SOURCE =
-            new CrawlingSource("MBLE", "미블", "https://www.mble.xyz", null, null, "MBLE", 2);
+    private static final CrawlingSource GANGNAM_SOURCE =
+            new CrawlingSource("GANGNAM", "강남맛집", "https://www.gangnam.kr", null, null, "GANGNAM", 2);
+
+    @BeforeEach
+    void setUp() {
+        when(crawlingProperties.getParallelThreads()).thenReturn(5);
+    }
 
     @Test
     @DisplayName("전체 실행 - 성공")
@@ -53,7 +62,8 @@ class CrawlingOrchestratorTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(mockCrawler));
         CrawlingOrchestrator testOrchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+        testOrchestrator.initExecutor();
 
         List<CrawlingResult> results = testOrchestrator.executeAll();
 
@@ -81,7 +91,8 @@ class CrawlingOrchestratorTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(mockCrawler));
         CrawlingOrchestrator testOrchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+        testOrchestrator.initExecutor();
 
         List<CrawlingResult> results = testOrchestrator.executeAll();
 
@@ -97,15 +108,16 @@ class CrawlingOrchestratorTest {
 
         when(failCrawler.getCrawlerType()).thenReturn("REVU");
         when(failCrawler.crawl(REVU_SOURCE)).thenThrow(new RuntimeException("실패"));
-        when(successCrawler.getCrawlerType()).thenReturn("MBLE");
-        when(successCrawler.crawl(MBLE_SOURCE)).thenReturn(List.of());
-        when(crawlingSourceRepository.findAllActiveOrderByDisplayOrder()).thenReturn(List.of(REVU_SOURCE, MBLE_SOURCE));
+        when(successCrawler.getCrawlerType()).thenReturn("GANGNAM");
+        when(successCrawler.crawl(GANGNAM_SOURCE)).thenReturn(List.of());
+        when(crawlingSourceRepository.findAllActiveOrderByDisplayOrder()).thenReturn(List.of(REVU_SOURCE, GANGNAM_SOURCE));
         when(campaignRepository.findExpiredRecruitingCampaigns(any())).thenReturn(List.of());
         when(crawlingLogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(failCrawler, successCrawler));
         CrawlingOrchestrator testOrchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+        testOrchestrator.initExecutor();
 
         List<CrawlingResult> results = testOrchestrator.executeAll();
 

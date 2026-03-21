@@ -21,6 +21,8 @@ public class CrawlingProperties {
     private String revePassword;
     private boolean detailFetchEnabled = true;
     private int detailFetchDelayMs = 500;
+    private int mockCount = 50;
+    private int parallelThreads = 5;
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -50,4 +52,8 @@ public class CrawlingProperties {
     public void setDetailFetchEnabled(boolean detailFetchEnabled) { this.detailFetchEnabled = detailFetchEnabled; }
     public int getDetailFetchDelayMs() { return detailFetchDelayMs; }
     public void setDetailFetchDelayMs(int detailFetchDelayMs) { this.detailFetchDelayMs = detailFetchDelayMs; }
+    public int getMockCount() { return mockCount; }
+    public void setMockCount(int mockCount) { this.mockCount = mockCount; }
+    public int getParallelThreads() { return parallelThreads; }
+    public void setParallelThreads(int parallelThreads) { this.parallelThreads = parallelThreads; }
 }

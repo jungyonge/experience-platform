@@ -30,12 +30,11 @@ class CampaignFilterOptionIntegrationTest {
     }
 
     @Test
-    @DisplayName("sourceTypes에 data.sql의 REVU, MBLE, GANGNAM 포함")
+    @DisplayName("sourceTypes에 data.sql의 REVU, GANGNAM 포함")
     void getFilters_containsKnownSources() throws Exception {
         mockMvc.perform(get("/api/v1/campaigns/filters"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sourceTypes[*].code", hasItem("REVU")))
-                .andExpect(jsonPath("$.sourceTypes[*].code", hasItem("MBLE")))
                 .andExpect(jsonPath("$.sourceTypes[*].code", hasItem("GANGNAM")));
     }
 
