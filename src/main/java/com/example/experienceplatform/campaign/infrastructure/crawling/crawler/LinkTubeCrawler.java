@@ -108,18 +108,30 @@ public class LinkTubeCrawler implements CampaignCrawler {
             }
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        LocalDate applyEndDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+        Integer recruitCount = null;
+        java.util.regex.Matcher rm = java.util.regex.Pattern.compile("모집\\s*(\\d+)").matcher(doc.text());
+        if (rm.find()) recruitCount = Integer.parseInt(rm.group(1));
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(),
+                coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getRecruitCount(), recruitCount),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                coalesce(campaign.getApplyEndDate(), applyEndDate),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), campaign.getMission(),
-                campaign.getAddress(),
+                coalesce(campaign.getAddress(), address),
                 campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 

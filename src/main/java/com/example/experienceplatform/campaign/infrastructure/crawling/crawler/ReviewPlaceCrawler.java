@@ -138,17 +138,21 @@ public class ReviewPlaceCrawler implements CampaignCrawler {
             if (m2.find()) currentApplicants = Integer.parseInt(m2.group(1));
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(),
+                coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
                 campaign.getApplyEndDate(),
                 coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), campaign.getMission(),
-                campaign.getAddress(),
+                coalesce(campaign.getAddress(), address),
                 campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );

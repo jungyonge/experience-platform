@@ -194,12 +194,22 @@ public class ReveCrawler implements CampaignCrawler {
         // 미션: 포스팅 기간 정보
         String mission = buildMission(item, media);
 
+        // currentApplicants from API
+        Integer currentApplicants = null;
+        if (item.has("applicantCount")) {
+            currentApplicants = item.path("applicantCount").asInt(0);
+            if (currentApplicants == 0) currentApplicants = null;
+        } else if (item.has("requestCount")) {
+            currentApplicants = item.path("requestCount").asInt(0);
+            if (currentApplicants == 0) currentApplicants = null;
+        }
+
         return new CrawledCampaign(
                 source.getCode(), originalId, title, description,
                 contentImage != null ? "<img src=\"" + contentImage + "\">" : null,
                 thumbnailUrl, originalUrl, category, status,
                 recruitCount, applyStartDate, applyEndDate, announcementDate,
-                reward, mission, address, keywords
+                reward, mission, address, keywords, currentApplicants
         );
     }
 

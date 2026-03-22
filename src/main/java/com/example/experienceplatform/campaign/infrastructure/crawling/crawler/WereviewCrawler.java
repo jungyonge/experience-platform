@@ -118,16 +118,31 @@ public class WereviewCrawler implements CampaignCrawler {
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+        String reward = null;
+        for (Element el : doc.select("th, dt, .label")) {
+            if (el.text().contains("제공") || el.text().contains("혜택") || el.text().contains("리워드")) {
+                Element sibling = el.nextElementSibling();
+                if (sibling != null) { reward = sibling.text().trim(); break; }
+            }
+        }
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
                 campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
-                campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(), campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 

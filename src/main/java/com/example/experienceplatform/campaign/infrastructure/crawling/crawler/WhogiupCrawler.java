@@ -89,9 +89,15 @@ public class WhogiupCrawler implements CampaignCrawler {
                 if (response.statusCode() != 200) continue;
 
                 JsonNode root = objectMapper.readTree(response.body());
-                if (!root.isArray()) continue;
+                JsonNode items = root;
+                if (!items.isArray()) items = root.path("data");
+                if (!items.isArray() || items.isMissingNode()) {
+                    log.warn("WHOGIUP {} 예상하지 못한 응답 구조: {}", type,
+                            response.body().substring(0, Math.min(200, response.body().length())));
+                    continue;
+                }
 
-                for (JsonNode item : root) {
+                for (JsonNode item : items) {
                     try {
                         CrawledCampaign campaign = parseItem(item, source);
                         if (campaign != null) results.add(campaign);
@@ -111,23 +117,30 @@ public class WhogiupCrawler implements CampaignCrawler {
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
-        // Whogiup is a React SPA - content loads via client-side JS, not available in Jsoup HTML
         String description = null;
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(),
+                coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(),
+                coalesce(campaign.getAddress(), address),
                 campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 

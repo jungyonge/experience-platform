@@ -115,16 +115,27 @@ public class AlljamCrawler implements CampaignCrawler {
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        LocalDate applyEndDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                coalesce(campaign.getApplyEndDate(), applyEndDate),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(), campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 

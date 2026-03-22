@@ -15,7 +15,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,8 +26,11 @@ public class ChehumdanCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(ChehumdanCrawler.class);
     private static final String BASE_URL = "https://chehumdan.com";
+    private static final int PAGE_SIZE = 40;
     private static final Pattern NUMBER_PARAM_PATTERN = Pattern.compile("number=(\\d+)");
     private static final Pattern RECRUIT_PATTERN = Pattern.compile("모집\\s*(\\d+)");
+    private static final Pattern APPLICANT_PATTERN = Pattern.compile("신청\\s*(\\d+)");
+    private static final Pattern CATEGORY_ID_PATTERN = Pattern.compile("category\\.php\\?category=(\\d+)");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
@@ -57,18 +62,109 @@ public class ChehumdanCrawler implements CampaignCrawler {
     }
 
     private List<CrawledCampaign> crawlReal(CrawlingSource source) {
-        if (!robotsTxtChecker.isAllowed(BASE_URL, "/html_file.php")) {
+        if (!robotsTxtChecker.isAllowed(BASE_URL, "/category.php")) {
             log.warn("CHEHUMDAN robots.txt에 의해 크롤링이 차단되었습니다.");
             return List.of();
         }
 
         List<CrawledCampaign> results = new ArrayList<>();
         try {
-            String url = BASE_URL + "/html_file.php?file=all_campaign.html";
+            Set<String> categoryIds = discoverCategories();
+            if (categoryIds.isEmpty()) {
+                log.warn("CHEHUMDAN 카테고리를 찾지 못했습니다. 전체 페이지로 폴백합니다.");
+                results.addAll(crawlListPage(BASE_URL + "/html_file.php?file=all_campaign.html", source));
+            } else {
+                for (String categoryId : categoryIds) {
+                    results.addAll(crawlCategory(categoryId, source));
+                    delayHandler.delay();
+                }
+            }
+        } catch (Exception e) {
+            log.error("CHEHUMDAN 크롤링 실패: {}", e.getMessage());
+        }
+        results = enricher.enrich(results, this::parseDetailPage);
+        log.info("CHEHUMDAN 크롤링 완료: {}건 (카테고리 {}개)", results.size(), discoverCategoriesSafe().size());
+        return results;
+    }
+
+    /**
+     * 메인 페이지에서 카테고리 링크를 자동으로 발견한다.
+     * category.php?category={id} 패턴의 링크를 추출한다.
+     */
+    private Set<String> discoverCategories() {
+        Set<String> categoryIds = new LinkedHashSet<>();
+        try {
+            Document mainPage = jsoupClient.fetch(BASE_URL);
+            Elements links = mainPage.select("a[href*=category.php?category=]");
+            for (Element link : links) {
+                Matcher m = CATEGORY_ID_PATTERN.matcher(link.attr("href"));
+                if (m.find()) {
+                    categoryIds.add(m.group(1));
+                }
+            }
+            log.info("CHEHUMDAN 발견된 카테고리: {}", categoryIds);
+        } catch (Exception e) {
+            log.warn("CHEHUMDAN 카테고리 탐색 실패: {}", e.getMessage());
+        }
+        return categoryIds;
+    }
+
+    private Set<String> discoverCategoriesSafe() {
+        try {
+            return discoverCategories();
+        } catch (Exception e) {
+            return Set.of();
+        }
+    }
+
+    /**
+     * 특정 카테고리의 모든 페이지를 순회하며 크롤링한다.
+     * start=0, 40, 80, ... 으로 페이징하며, maxPagesPerSite 설정을 존중한다.
+     */
+    private List<CrawledCampaign> crawlCategory(String categoryId, CrawlingSource source) {
+        List<CrawledCampaign> results = new ArrayList<>();
+        int maxPages = properties.getMaxPagesPerSite();
+        Set<String> seenIds = new LinkedHashSet<>();
+
+        for (int page = 0; page < maxPages; page++) {
+            int start = page * PAGE_SIZE;
+            String url = BASE_URL + "/category.php?start=" + start + "&category=" + categoryId;
+            log.debug("CHEHUMDAN 크롤링: {}", url);
+
+            List<CrawledCampaign> pageResults = crawlListPage(url, source);
+            if (pageResults.isEmpty()) {
+                break;
+            }
+
+            boolean hasNew = false;
+            for (CrawledCampaign campaign : pageResults) {
+                if (seenIds.add(campaign.getOriginalId())) {
+                    results.add(campaign);
+                    hasNew = true;
+                }
+            }
+
+            if (!hasNew) {
+                break;
+            }
+
+            delayHandler.delay();
+        }
+
+        log.info("CHEHUMDAN 카테고리 {} 크롤링: {}건", categoryId, results.size());
+        return results;
+    }
+
+    /**
+     * 단일 목록 페이지에서 캠페인 아이템들을 파싱한다.
+     * category.php와 html_file.php 모두 동일한 HTML 구조(div.thum-box)를 사용한다.
+     */
+    private List<CrawledCampaign> crawlListPage(String url, CrawlingSource source) {
+        List<CrawledCampaign> results = new ArrayList<>();
+        try {
             Document doc = jsoupClient.fetch(url);
             Elements items = doc.select("div.thum-box");
             if (items.isEmpty()) {
-                log.warn("CHEHUMDAN 캠페인 아이템을 찾지 못했습니다.");
                 return results;
             }
 
@@ -81,10 +177,8 @@ public class ChehumdanCrawler implements CampaignCrawler {
                 }
             }
         } catch (Exception e) {
-            log.error("CHEHUMDAN 크롤링 실패: {}", e.getMessage());
+            log.warn("CHEHUMDAN 페이지 크롤링 실패 {}: {}", url, e.getMessage());
         }
-        results = enricher.enrich(results, this::parseDetailPage);
-        log.info("CHEHUMDAN 크롤링 완료: {}건", results.size());
         return results;
     }
 
@@ -95,7 +189,7 @@ public class ChehumdanCrawler implements CampaignCrawler {
         if (metaDesc != null) description = metaDesc.attr("content");
 
         Integer currentApplicants = null;
-        Matcher m = Pattern.compile("신청\\s*(\\d+)").matcher(doc.text());
+        Matcher m = APPLICANT_PATTERN.matcher(doc.text());
         if (m.find()) currentApplicants = Integer.parseInt(m.group(1));
 
         String mission = null;
@@ -120,13 +214,17 @@ public class ChehumdanCrawler implements CampaignCrawler {
             } catch (Exception ignored) {}
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                coalesce(campaign.getApplyEndDate(), applyEndDate), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
+                coalesce(campaign.getApplyEndDate(), applyEndDate), coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), coalesce(campaign.getMission(), mission),
                 campaign.getAddress(), campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
@@ -134,12 +232,12 @@ public class ChehumdanCrawler implements CampaignCrawler {
     }
 
     private CrawledCampaign parseItem(Element item, CrawlingSource source) {
-        // Title from p.list-tit > a
+        // 제목: p.list-tit > a
         Element titleLink = item.selectFirst("p.list-tit > a");
         String title = titleLink != null ? titleLink.text().trim() : "";
         if (title.isEmpty()) return null;
 
-        // ID from href - extract number parameter from detail.php?number={id}&category=...
+        // ID: href에서 number 파라미터 추출 (detail.php?number={id}&category=...)
         String originalId = null;
         String linkHref = titleLink != null ? titleLink.attr("href") : "";
         if (linkHref.isEmpty()) {
@@ -152,7 +250,7 @@ public class ChehumdanCrawler implements CampaignCrawler {
         }
         if (originalId == null || originalId.isEmpty()) return null;
 
-        // Thumbnail from div.thum-img img (relative ./mallimg/..., prefix with BASE_URL + "/")
+        // 썸네일: div.thum-img img
         Element img = item.selectFirst("div.thum-img img");
         String thumbnailUrl = null;
         if (img != null) {
@@ -168,7 +266,7 @@ public class ChehumdanCrawler implements CampaignCrawler {
             }
         }
 
-        // Recruit from span.list-per (e.g., "신청 2 / 모집 10")
+        // 모집인원: span.list-per (예: "신청 2 / 모집 10")
         String recruitText = item.select("span.list-per").text().trim();
         Integer recruitCount = null;
         Matcher recruitMatcher = RECRUIT_PATTERN.matcher(recruitText);
@@ -176,15 +274,33 @@ public class ChehumdanCrawler implements CampaignCrawler {
             recruitCount = Integer.parseInt(recruitMatcher.group(1));
         }
 
-        // Status from span.blink
+        // 현재 신청자 수
+        Integer currentApplicants = null;
+        Matcher applicantMatcher = APPLICANT_PATTERN.matcher(recruitText);
+        if (applicantMatcher.find()) {
+            currentApplicants = Integer.parseInt(applicantMatcher.group(1));
+        }
+
+        // 상태: span.blink 텍스트
         CampaignStatus status = CampaignStatus.RECRUITING;
         String blinkText = item.select("span.blink").text().trim();
+        if (blinkText.contains("마감")) {
+            status = CampaignStatus.CLOSED;
+        }
 
-        // Reward from p.list-txt
+        // 제공내역: p.list-txt
         String reward = item.select("p.list-txt").text().trim();
         if (reward.isEmpty()) reward = null;
 
-        // Category from title
+        // 지역: list-day 내 [지역] 패턴
+        String address = null;
+        String dayText = item.select("p.list-day").text();
+        Matcher addrMatcher = Pattern.compile("\\[([^]]+)]").matcher(dayText);
+        if (addrMatcher.find()) {
+            address = addrMatcher.group(1).trim();
+        }
+
+        // 카테고리 추론
         CampaignCategory category = CategoryMapper.map(title);
 
         String originalUrl = BASE_URL + "/detail.php?number=" + originalId;
@@ -193,7 +309,8 @@ public class ChehumdanCrawler implements CampaignCrawler {
                 source.getCode(), originalId, title, null, null,
                 thumbnailUrl, originalUrl, category, status,
                 recruitCount, null, null, null,
-                reward, null, null, "체험단닷컴,체험단"
+                reward, null, address, "체험단닷컴,체험단",
+                currentApplicants
         );
     }
 

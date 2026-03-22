@@ -60,7 +60,8 @@ task copyFrontend(type: Copy) {
     into "${projectDir}/src/main/resources/static"
 }
 
-processResources.dependsOn copyFrontend
+bootJar { dependsOn copyFrontend }
+bootRun { dependsOn copyFrontend }
 
 tasks.named('test') {
     useJUnitPlatform()

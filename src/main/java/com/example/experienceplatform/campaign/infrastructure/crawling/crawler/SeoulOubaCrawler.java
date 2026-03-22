@@ -68,22 +68,25 @@ public class SeoulOubaCrawler implements CampaignCrawler {
         }
 
         List<CrawledCampaign> results = new ArrayList<>();
+        boolean page1Empty = false;
 
         // Page 1: fetch main HTML page
         try {
             Document doc = jsoupClient.fetch(MAIN_URL);
             List<CrawledCampaign> page1 = parseCampaignItems(doc, source);
             results.addAll(page1);
-            if (page1.isEmpty()) {
-                return results;
+            page1Empty = page1.isEmpty();
+            if (page1Empty) {
+                log.info("SEOULOUBA 메인 페이지에서 캠페인 미발견, AJAX로 시도합니다.");
             }
         } catch (Exception e) {
             log.error("SEOULOUBA 첫 페이지 크롤링 실패: {}", e.getMessage());
-            return results;
+            page1Empty = true;
         }
 
-        // Pages 2+: fetch via AJAX POST
-        for (int page = 2; page <= properties.getMaxPagesPerSite(); page++) {
+        // AJAX pages: page1이 비었으면 1부터, 아니면 2부터
+        int startPage = page1Empty ? 1 : 2;
+        for (int page = startPage; page <= properties.getMaxPagesPerSite(); page++) {
             try {
                 delayHandler.delay();
                 Document doc = fetchAjaxPage(page);
@@ -126,13 +129,17 @@ public class SeoulOubaCrawler implements CampaignCrawler {
             if (addrEl != null) address = addrEl.text().trim();
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(), coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
                 coalesce(campaign.getAddress(), address), campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)

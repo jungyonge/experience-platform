@@ -1,9 +1,9 @@
 -- CrawlingSource seed data
 INSERT INTO crawling_sources (code, name, base_url, list_url_pattern, description, crawler_type, active, display_order, created_at, updated_at) VALUES
-('REVU', '레뷰', 'https://www.revu.net', 'https://www.revu.net/campaign/list?page={page}', '레뷰 체험단 플랫폼', 'REVU', true, 1, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
+('REVU', '레뷰', 'https://www.revu.net', 'https://www.revu.net/campaign/list?page={page}', '레뷰 체험단 플랫폼 (AngularJS SPA, REVE API가 대체)', 'REVU', false, 1, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('GANGNAM', '강남맛집', 'https://xn--939au0g4vj8sq.net', 'https://xn--939au0g4vj8sq.net/theme/go/_list_cmp_tpl.php?ca=20&local_1=%EC%A0%84%EC%B2%B4&local_2=%EC%84%9C%EC%9A%B8&rpage={page}&row_num=28', '강남맛집 체험단 플랫폼', 'GANGNAM', true, 3, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('REVE', '레뷰(REVE)', 'https://api.weble.net', 'https://api.weble.net/v1/campaigns?cat=%EC%A7%80%EC%97%AD%2F%EB%B7%B0%ED%8B%B0&limit=35&media%5B%5D=blog&media%5B%5D=instagram&media%5B%5D=youtube&media%5B%5D=clip&page={page}&sort=latest&type=play', '레뷰 체험단 플랫폼 (JSON API)', 'REVE', true, 4, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-('REVIEWNOTE', '리뷰노트', 'https://reviewnote.co.kr', NULL, '리뷰노트 체험단 플랫폼 (Next.js SSR)', 'REVIEWNOTE', true, 5, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
+('REVIEWNOTE', '리뷰노트', 'https://www.reviewnote.co.kr', NULL, '리뷰노트 체험단 플랫폼 (Next.js SSR)', 'REVIEWNOTE', true, 5, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('SEOULOUBA', '서울오빠', 'https://seoulouba.co.kr', NULL, '서울오빠 체험단 플랫폼', 'SEOULOUBA', true, 6, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('REVIEWPLACE', '리뷰플레이스', 'https://reviewplace.co.kr', NULL, '리뷰플레이스 체험단 플랫폼', 'REVIEWPLACE', true, 7, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('DINNERQUEEN', '디너의여왕', 'https://dinnerqueen.net', NULL, '디너의여왕 체험단 플랫폼 (POST API)', 'DINNERQUEEN', true, 8, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
@@ -35,14 +35,14 @@ INSERT INTO crawling_sources (code, name, base_url, list_url_pattern, descriptio
 ('GUGUDAS', '구구다스', 'https://99das.com', NULL, '구구다스 체험단 플랫폼', 'GUGUDAS', true, 35, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('LINKTUBE', '링크튜브', 'https://linktube.me', NULL, '링크튜브 체험단 플랫폼', 'LINKTUBE', true, 36, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('MIBLE', '미블', 'https://mrblog.net', NULL, '미블 체험단 플랫폼', 'MIBLE', true, 37, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-('ODIYA', '어디야', 'https://odiya.kr', NULL, '어디야 체험단 플랫폼', 'ODIYA', true, 38, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
+('ODIYA', '어디야', 'https://odiya.kr', NULL, '어디야 체험단 플랫폼 (사이트 다운)', 'ODIYA', false, 38, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('OHMYBLOG', '오마이블로그', 'https://ohmyblog.co.kr', NULL, '오마이블로그 체험단 플랫폼', 'OHMYBLOG', true, 39, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('OPENREVIEW', '오픈리뷰', 'https://openreview.kr', NULL, '오픈리뷰 체험단 플랫폼', 'OPENREVIEW', true, 40, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('REAL_REVIEW', '리얼리뷰', 'https://real-review.kr', NULL, '리얼리뷰 체험단 플랫폼', 'REAL_REVIEW', true, 41, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-('REVIEW_EXPEDITION', '리뷰원정대', 'https://reviewexpedition.co.kr', NULL, '리뷰원정대 체험단 플랫폼', 'REVIEW_EXPEDITION', true, 42, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
+('REVIEW_EXPEDITION', '리뷰원정대', 'https://reviewexpedition.co.kr', NULL, '리뷰원정대 체험단 플랫폼 (사이트 폐쇄)', 'REVIEW_EXPEDITION', false, 42, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('STORYNMEDIA', '스토리앤미디어', 'https://storyn.co.kr', NULL, '스토리앤미디어 체험단 플랫폼', 'STORYNMEDIA', true, 43, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('STYLEC', '스타일씨', 'https://www.stylec.co.kr', NULL, '스타일씨 체험단 플랫폼', 'STYLEC', true, 44, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
-('WEREVIEW', '위리뷰', 'https://www.wereview.fun', NULL, '위리뷰 체험단 플랫폼', 'WEREVIEW', true, 45, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
+('WEREVIEW', '위리뷰', 'https://www.wereview.fun', NULL, '위리뷰 체험단 플랫폼 (숏폼 전문, 블로그 체험단 아님)', 'WEREVIEW', false, 45, '2026-03-01 00:00:00', '2026-03-01 00:00:00'),
 ('YOGITG', '요깃지', 'https://yogitg.co.kr', NULL, '요깃지 체험단 플랫폼', 'YOGITG', true, 46, '2026-03-01 00:00:00', '2026-03-01 00:00:00');
 
 -- Campaign seed data (60건)

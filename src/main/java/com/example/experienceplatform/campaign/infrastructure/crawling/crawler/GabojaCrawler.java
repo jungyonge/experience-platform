@@ -113,7 +113,7 @@ public class GabojaCrawler implements CampaignCrawler {
         String address = null;
         for (Element el : doc.select("td, th, dt, dd, span, div, p")) {
             String text = el.ownText().trim();
-            if (text.matches(".*[가-힣]+[시도]\\s+[가-힣]+[시군구].*") && text.length() < 150 && text.length() > 10) {
+            if (text.matches(".*(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)(?:특별시|광역시|도)?\\s*[가-힣]+(?:시|군|구|동|읍|면).*") && text.length() < 150 && text.length() > 5) {
                 address = text;
                 break;
             }
@@ -128,14 +128,18 @@ public class GabojaCrawler implements CampaignCrawler {
             if (m2.find()) currentApplicants = Integer.parseInt(m2.group(1));
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(),
+                coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(), coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), campaign.getMission(),
                 coalesce(campaign.getAddress(), address),
                 campaign.getKeywords(),

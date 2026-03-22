@@ -32,6 +32,8 @@ public class FourblogCrawler implements CampaignCrawler {
     private static final String BASE_URL = "https://4blog.net";
     private static final String API_URL = BASE_URL + "/loadMoreDataCategory";
     private static final String CDN_URL = "https://d3oxv6xcx9d0j1.cloudfront.net/public/pr/";
+    private static final Pattern ADDRESS_FROM_TITLE = Pattern.compile(
+            "\\[((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^\\]]*)]");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
@@ -71,25 +73,46 @@ public class FourblogCrawler implements CampaignCrawler {
         List<CrawledCampaign> results = new ArrayList<>();
 
         try {
-            String url = API_URL + "?offset=0&limit=300&category=blog&category1=&location=&search=";
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Accept", "application/json")
-                    .header("User-Agent", properties.getUserAgent())
-                    .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
-                    .GET()
-                    .build();
+            // 1. 메인 페이지에서 세션 쿠키 + CSRF 토큰 획득
+            org.jsoup.Connection.Response mainResponse = org.jsoup.Jsoup.connect(BASE_URL + "/?category=blog")
+                    .userAgent(properties.getUserAgent())
+                    .timeout((int) properties.getReadTimeoutMs())
+                    .execute();
+            java.util.Map<String, String> cookies = mainResponse.cookies();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                log.error("FOURBLOG API 응답 오류: HTTP {}", response.statusCode());
+            org.jsoup.nodes.Document mainDoc = mainResponse.parse();
+            org.jsoup.nodes.Element csrfMeta = mainDoc.selectFirst("meta[name=_csrf]");
+            org.jsoup.nodes.Element csrfHeaderMeta = mainDoc.selectFirst("meta[name=_csrf_header]");
+            String csrfToken = csrfMeta != null ? csrfMeta.attr("content") : "";
+            String csrfHeader = csrfHeaderMeta != null ? csrfHeaderMeta.attr("content") : "X-CSRF-TOKEN";
+
+            // 2. AJAX API 호출 (세션 쿠키 + CSRF 포함)
+            String apiUrl = API_URL + "?offset=0&limit=300&category=blog&category1=&location=&search=";
+            org.jsoup.Connection.Response apiResponse = org.jsoup.Jsoup.connect(apiUrl)
+                    .cookies(cookies)
+                    .header(csrfHeader, csrfToken)
+                    .header("X-Requested-With", "XMLHttpRequest")
+                    .header("Accept", "application/json, text/javascript, */*; q=0.01")
+                    .userAgent(properties.getUserAgent())
+                    .timeout((int) properties.getReadTimeoutMs())
+                    .ignoreContentType(true)
+                    .execute();
+
+            if (apiResponse.statusCode() != 200) {
+                log.error("FOURBLOG API 응답 오류: HTTP {}", apiResponse.statusCode());
                 return results;
             }
 
-            JsonNode root = objectMapper.readTree(response.body());
-            if (!root.isArray()) return results;
+            String body = apiResponse.body();
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode items = root;
+            if (!items.isArray()) items = root.path("data");
+            if (!items.isArray() || items.isMissingNode()) {
+                log.warn("FOURBLOG 예상하지 못한 응답 구조: {}", body.substring(0, Math.min(200, body.length())));
+                return results;
+            }
 
-            for (JsonNode item : root) {
+            for (JsonNode item : items) {
                 try {
                     CrawledCampaign campaign = parseItem(item, source);
                     if (campaign != null) results.add(campaign);
@@ -107,23 +130,30 @@ public class FourblogCrawler implements CampaignCrawler {
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
-        // 4blog is a React SPA - content loads via client-side JS, not available in Jsoup HTML
         String description = null;
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(),
+                coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(),
+                coalesce(campaign.getAddress(), address),
                 campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 
@@ -150,11 +180,18 @@ public class FourblogCrawler implements CampaignCrawler {
 
         CampaignCategory category = CategoryMapper.map(title + " " + category1 + " " + keyword);
 
+        // 제목에서 주소 추출: "[서울/송파] 매장명" → "서울 송파"
+        String address = null;
+        Matcher addrMatcher = ADDRESS_FROM_TITLE.matcher(title);
+        if (addrMatcher.find()) {
+            address = addrMatcher.group(1).replace("/", " ").trim();
+        }
+
         return new CrawledCampaign(
                 source.getCode(), cid, title, null, null,
                 thumbnailUrl, originalUrl, category, status,
                 reviewerCnt > 0 ? reviewerCnt : null, null, applyEndDate, null,
-                benefit, "블로그 리뷰 작성", null, "포블로그,체험단"
+                benefit, "블로그 리뷰 작성", address, "포블로그,체험단"
         );
     }
 

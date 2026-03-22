@@ -87,10 +87,13 @@ public class WeuCrawler implements CampaignCrawler {
                 if (response.statusCode() != 200) break;
 
                 JsonNode root = objectMapper.readTree(response.body());
-                JsonNode data = root.path("data");
-                if (!data.isArray() || data.isEmpty()) break;
+                JsonNode dataWrapper = root.path("data");
+                // API 응답: {"meta":{...},"data":{"page":N,"total_data":N,"data":[...]}}
+                JsonNode items = dataWrapper.path("data");
+                if (!items.isArray()) items = dataWrapper;
+                if (!items.isArray() || items.isEmpty()) break;
 
-                for (JsonNode item : data) {
+                for (JsonNode item : items) {
                     try {
                         CrawledCampaign campaign = parseItem(item, source);
                         if (campaign != null) results.add(campaign);
@@ -99,8 +102,8 @@ public class WeuCrawler implements CampaignCrawler {
                     }
                 }
 
-                int total = root.path("total").asInt(0);
-                if (page * 20 >= total) break;
+                int totalData = dataWrapper.path("total_data").asInt(root.path("total").asInt(0));
+                if (page * 20 >= totalData) break;
                 if (page < properties.getMaxPagesPerSite()) delayHandler.delay();
             } catch (Exception e) {
                 log.error("WEU 페이지 {} 크롤링 실패: {}", page, e.getMessage());
@@ -114,23 +117,37 @@ public class WeuCrawler implements CampaignCrawler {
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
-        // Weu is a React SPA - content loads via client-side JS, not available in Jsoup HTML
         String description = null;
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+        String reward = null;
+        for (Element el : doc.select("th, dt, .label")) {
+            if (el.text().contains("제공") || el.text().contains("혜택") || el.text().contains("리워드")) {
+                Element sibling = el.nextElementSibling();
+                if (sibling != null) { reward = sibling.text().trim(); break; }
+            }
+        }
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(),
+                coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
-                campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
+                coalesce(campaign.getReward(), reward), campaign.getMission(),
+                coalesce(campaign.getAddress(), address),
                 campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 
@@ -161,13 +178,26 @@ public class WeuCrawler implements CampaignCrawler {
             }
         }
 
+        String reward = item.path("winner_campaign_reward").asText("");
+        if (reward.isEmpty()) reward = null;
+        else reward = reward.replaceAll("<[^>]*>", "").trim();
+
+        String keyword = item.path("keyword").asText("");
+        String keywords = keyword.isEmpty() ? "위유,체험단" : keyword + ",위유,체험단";
+
+        String address = item.path("address").asText("");
+        if (address.isEmpty()) address = null;
+
+        int registerCount = item.path("number_of_register").asInt(0);
+
         CampaignCategory category = CategoryMapper.map(title + " " + campaignType);
 
         return new CrawledCampaign(
                 source.getCode(), originalId, title, null, null,
                 thumbnailUrl, originalUrl, category, CampaignStatus.RECRUITING,
                 maxSelected > 0 ? maxSelected : null, null, applyEndDate, null,
-                null, "블로그 리뷰 작성", null, "위유,체험단"
+                reward, "블로그 리뷰 작성", address, keywords,
+                registerCount > 0 ? registerCount : null
         );
     }
 

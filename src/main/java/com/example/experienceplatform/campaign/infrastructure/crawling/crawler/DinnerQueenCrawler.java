@@ -144,15 +144,24 @@ public class DinnerQueenCrawler implements CampaignCrawler {
             }
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                coalesce(campaign.getRecruitCount(), recruitCount), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                coalesce(campaign.getRecruitCount(), recruitCount),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), campaign.getMission(),
-                campaign.getAddress(), campaign.getKeywords(),
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }

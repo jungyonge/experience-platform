@@ -156,6 +156,12 @@ public class DailyviewCrawler implements CampaignCrawler {
                 if (announcementDate != null) break;
             }
         }
+        if (announcementDate == null) {
+            announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        }
+
+        // applyStartDate
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
 
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
@@ -163,7 +169,8 @@ public class DailyviewCrawler implements CampaignCrawler {
                 coalesce(campaign.getDetailContent(), detailContent),
                 campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
                 campaign.getApplyEndDate(),
                 coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), campaign.getMission(),

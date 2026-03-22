@@ -130,15 +130,20 @@ public class RealReviewCrawler implements CampaignCrawler {
             } catch (Exception ignored) {}
         }
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                coalesce(campaign.getApplyEndDate(), applyEndDate), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
+                coalesce(campaign.getApplyEndDate(), applyEndDate), coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), coalesce(campaign.getMission(), mission),
-                campaign.getAddress(), campaign.getKeywords(),
+                coalesce(campaign.getAddress(), address), campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }

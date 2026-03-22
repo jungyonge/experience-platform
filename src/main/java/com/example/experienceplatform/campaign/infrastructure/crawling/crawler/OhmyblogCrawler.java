@@ -110,9 +110,48 @@ public class OhmyblogCrawler implements CampaignCrawler {
             }
         }
 
+        enrichAddressFromApi(results);
         results = enricher.enrich(results, this::parseDetailPage);
         log.info("OHMYBLOG 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private static final String DETAIL_API_URL = "https://ohmyblog.co.kr/api/web/campaign/detail";
+
+    private void enrichAddressFromApi(List<CrawledCampaign> results) {
+        for (int i = 0; i < results.size(); i++) {
+            CrawledCampaign c = results.get(i);
+            if (c.getAddress() != null) continue;
+            try {
+                Thread.sleep(50);
+                String url = DETAIL_API_URL + "?app_seq=" + c.getOriginalId();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("Accept", "application/json")
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .GET()
+                        .build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    JsonNode root = objectMapper.readTree(response.body());
+                    JsonNode data = root.path("data");
+                    String addr1 = data.path("com_address1").asText("").trim();
+                    String addr2 = data.path("com_address2").asText("").trim();
+                    if (!addr1.isEmpty()) {
+                        String address = addr2.isEmpty() ? addr1 : addr1 + " " + addr2;
+                        results.set(i, new CrawledCampaign(
+                                c.getSourceCode(), c.getOriginalId(), c.getTitle(),
+                                c.getDescription(), c.getDetailContent(), c.getThumbnailUrl(), c.getOriginalUrl(),
+                                c.getCategory(), c.getStatus(), c.getRecruitCount(),
+                                c.getApplyStartDate(), c.getApplyEndDate(), c.getAnnouncementDate(),
+                                c.getReward(), c.getMission(), address, c.getKeywords(), c.getCurrentApplicants()));
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("OHMYBLOG 주소 API 호출 실패 {}: {}", c.getOriginalId(), e.getMessage());
+            }
+        }
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {
@@ -120,16 +159,26 @@ public class OhmyblogCrawler implements CampaignCrawler {
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(), campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 

@@ -22,7 +22,7 @@ import java.util.*;
 public class ReviewNoteCrawler implements CampaignCrawler {
 
     private static final Logger log = LoggerFactory.getLogger(ReviewNoteCrawler.class);
-    private static final String BASE_URL = "https://reviewnote.co.kr";
+    private static final String BASE_URL = "https://www.reviewnote.co.kr";
     private static final String IMAGE_BASE = "https://img.reviewnote.co.kr/";
     private static final String[] SORT_PAGES = {"new", "popular", "premium", "nearEnd"};
 
@@ -107,16 +107,24 @@ public class ReviewNoteCrawler implements CampaignCrawler {
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
                 campaign.getAddress(), campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 

@@ -106,15 +106,24 @@ public class RevuCrawler implements CampaignCrawler {
         Element missionEl = doc.selectFirst(".mission, .mission-text");
         if (missionEl != null) mission = missionEl.text().trim();
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+        String keywords = null;
+        if (campaign.getKeywords() == null) {
+            keywords = "레뷰,체험단";
+        }
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(), coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), coalesce(campaign.getMission(), mission),
-                campaign.getAddress(), campaign.getKeywords(),
+                coalesce(campaign.getAddress(), address), coalesce(campaign.getKeywords(), keywords),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }

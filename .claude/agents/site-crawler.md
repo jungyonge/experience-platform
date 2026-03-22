@@ -20,7 +20,15 @@ You fetch data from websites and APIs, automatically detecting the response type
 - Review any provided headers, parameters, or authentication details
 
 ### Step 2: Fetch the Data
-- Use `curl` or equivalent CLI tools to make HTTP requests
+
+**1순위: Firecrawl CLI** (JS 렌더링, SPA 지원)
+- `firecrawl scrape <url> --only-main-content` — 단일 페이지 마크다운 추출 (JS 렌더링 포함)
+- `firecrawl map <url> --search "keyword"` — 사이트 URL 구조 탐색, 특정 페이지 검색
+- `firecrawl crawl <url> --limit N` — 여러 페이지 일괄 크롤링
+- `firecrawl search "query"` — 웹 검색 + 전체 페이지 콘텐츠 추출
+- `firecrawl browser` — 로그인, 클릭, 폼 입력 등 브라우저 인터랙션 필요 시
+
+**2순위: curl** (JSON API, 간단한 요청)
 - Start with a simple GET request unless the user specifies otherwise
 - Include appropriate headers (User-Agent, Accept, etc.)
 - For initial reconnaissance, use `curl -sI` (HEAD request) to check Content-Type before full fetch
@@ -53,6 +61,30 @@ Analyze the Content-Type header and response body to determine the format:
 7. **POST requests and parameters**: If the user provides API parameters or request bodies, construct the appropriate curl command with `-X POST`, `-d`, `-H Content-Type`, etc.
 
 ## Fetching Strategies by Scenario
+
+### JS 렌더링 SPA (React, Vue, Angular 등)
+```bash
+firecrawl scrape <url> --only-main-content
+```
+Jsoup/curl로 파싱 불가한 SPA 사이트에 최우선 사용. 렌더링된 DOM을 마크다운으로 변환.
+
+### 사이트 구조 분석 (새 크롤러 개발 시)
+```bash
+firecrawl map <url> --search "category campaign"
+```
+사이트의 URL 구조를 파악하고, 카테고리/API 엔드포인트를 발견할 때 사용.
+
+### 대량 페이지 수집
+```bash
+firecrawl crawl <url> --limit 100
+```
+문서 사이트나 여러 페이지를 한 번에 크롤링할 때 사용.
+
+### 브라우저 인터랙션 (로그인, 페이지네이션, 무한스크롤)
+```bash
+firecrawl browser
+```
+로그인이 필요하거나 클릭/스크롤 등 인터랙션이 필요한 페이지에 사용.
 
 ### Static HTML Page
 ```bash
@@ -94,7 +126,7 @@ Examples of what to record:
 
 # Persistent Agent Memory
 
-You have a persistent, file-based memory system at `/Users/jungyong/Downloads/experience-platform/.claude/agent-memory/site-crawler/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
+You have a persistent, file-based memory system at `/Users/jungyong/Downloads/blog-review/.claude/agent-memory/site-crawler/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).
 
 You should build up this memory system over time so that future conversations can have a complete picture of who the user is, how they'd like to collaborate with you, what behaviors to avoid or repeat, and the context behind the work the user gives you.
 

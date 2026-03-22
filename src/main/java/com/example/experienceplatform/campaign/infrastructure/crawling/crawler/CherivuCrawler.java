@@ -113,16 +113,26 @@ public class CherivuCrawler implements CampaignCrawler {
         Element metaDesc = doc.selectFirst("meta[property=og:description]");
         if (metaDesc != null) description = metaDesc.attr("content");
 
+        String detailContent = DetailPageEnricher.extractDetailContent(doc);
+        Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
+        LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
+        LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
+        String address = DetailPageEnricher.extractAddress(doc);
+
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
-                campaign.getDetailContent(), campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
+                coalesce(campaign.getDetailContent(), detailContent),
+                campaign.getThumbnailUrl(), campaign.getOriginalUrl(),
                 campaign.getCategory(), campaign.getStatus(),
-                campaign.getRecruitCount(), campaign.getApplyStartDate(),
-                campaign.getApplyEndDate(), campaign.getAnnouncementDate(),
+                campaign.getRecruitCount(),
+                coalesce(campaign.getApplyStartDate(), applyStartDate),
+                campaign.getApplyEndDate(),
+                coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
-                campaign.getAddress(), campaign.getKeywords(),
-                campaign.getCurrentApplicants()
+                coalesce(campaign.getAddress(), address),
+                campaign.getKeywords(),
+                coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
 
@@ -139,6 +149,14 @@ public class CherivuCrawler implements CampaignCrawler {
         String reward = campaign.path("provide").asText(null);
         int recruitCount = campaign.path("count_application").asInt(0);
         String type = campaign.path("type").asText("");
+
+        // 주소 추출
+        String addrMain = campaign.path("address").asText("").trim();
+        String addrDetail = campaign.path("address_detail").asText("").trim();
+        String address = null;
+        if (!addrMain.isEmpty()) {
+            address = addrDetail.isEmpty() ? addrMain : addrMain + " " + addrDetail;
+        }
 
         String originalUrl = BASE_URL + "/campaigns/" + id;
 
@@ -164,7 +182,7 @@ public class CherivuCrawler implements CampaignCrawler {
                 source.getCode(), originalId, title, null, null,
                 imageUrl, originalUrl, category, status,
                 recruitCount > 0 ? recruitCount : null, null, applyEndDate, null,
-                reward, "블로그 리뷰 작성", null, "체리뷰,체험단"
+                reward, "블로그 리뷰 작성", address, "체리뷰,체험단"
         );
     }
 

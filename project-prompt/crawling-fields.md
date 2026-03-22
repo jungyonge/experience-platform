@@ -25,151 +25,198 @@
 
 ---
 
-## 2. 공통 필드 — 모든 활성 사이트에서 수집 (5개)
+## 2. 사이트별 전체 필드 수집 매트릭스 (활성 40개)
 
-| 필드 | 한국어명 | 커버리지 | 비고 |
-|------|----------|----------|------|
-| originalId | 원본ID | 45/46 (98%) | 사이트 고유 ID 또는 URL 기반 생성 |
-| title | 제목 | 45/46 (98%) | 캠페인 제목 |
-| originalUrl | 원본URL | 45/46 (98%) | 상세 페이지 링크 |
-| category | 카테고리 | 45/46 (98%) | CategoryMapper로 제목 기반 분류 |
-| status | 상태 | 45/46 (98%) | RECRUITING/CLOSED 판별 |
-
-> REVIEW_EXPEDITION(사이트 오프라인)을 제외하면 5개 필드 모두 100% 수집.
-
----
-
-## 3. 준공통 필드 — 80% 이상 사이트에서 수집 (7개)
-
-| 필드 | 한국어명 | 커버리지 | 미수집 사이트 |
-|------|----------|----------|---------------|
-| description | 설명 | △45/46 (98%) | REVIEW_EXPEDITION |
-| mission | 미션 | △45/46 (98%) | REVIEW_EXPEDITION |
-| thumbnailUrl | 썸네일URL | 44/46 (96%) | TOJOBCN, REVIEW_EXPEDITION |
-| reward | 제공내역 | △43/46 (93%) | WEU, WEREVIEW, REVIEW_EXPEDITION |
-| keywords | 키워드 | 42/46 (91%) | REVU, MBLE, GANGNAM, REVIEW_EXPEDITION |
-| recruitCount | 모집인원 | △42/46 (91%) | RINGBLE, LINKTUBE, TOJOBCN, REVIEW_EXPEDITION |
-| applyEndDate | 신청마감일 | △42/46 (91%) | ALLJAM, LINKTUBE, TOJOBCN, REVIEW_EXPEDITION |
-
-> △ = 상세페이지 enrichment로 조건부 수집. `DetailPageEnricher`가 활성화된 경우 상세 페이지에서 추가 추출 시도.
-> description: 리스트에서 직접 수집 7개 사이트 (REVE, REVU, MBLE, DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG) + 상세페이지 meta[name=description] / meta[property=og:description]에서 38개 사이트 추가 추출.
-> reward: 리스트에서 28개 사이트 수집 + 상세페이지 enrichment 15개 사이트 추가 추출.
-> recruitCount는 일부 사이트에서 조건부 수집 (값이 0이면 null 처리): REVIEWPLACE, WEU, CHVU, FINEADPLE, FOURBLOG, POPOMON, WHOGIUP, GABOJA, MIBLE, ODIYA, OPENREVIEW, COMETOPLAY, STYLEC, BLOGDEX, GUGUDAS, ALLJAM
-> keywords: REVU, MBLE, GANGNAM은 parseItem에서 keywords를 null로 설정하여 미수집.
-
----
-
-## 4. 선택 필드 — 30~80% 사이트에서 수집 (2개)
-
-| 필드 | 한국어명 | 커버리지 | 수집 사이트 |
-|------|----------|----------|-------------|
-| currentApplicants | 현재신청자수 | △28/46 (61%) | 상세페이지 "신청 N" 패턴 추출. enricher에서 coalesce로 보강하는 28개 사이트 |
-| address | 주소 | △16/46 (35%) | 리스트 5개 (REVE, REVIEWNOTE, BLOGDEX, GUGUDAS, MIBLE) + 상세페이지 △11개 |
-
-currentApplicants 미수집 (18개): REVE, OHMYBLOG, WHOGIUP, WEU, STYLEC, FINEADPLE, FOURBLOG, POPOMON, CHVU, ALLJAM, CHERIVU, BLOGDEX, GUGUDAS, LINKTUBE, TOJOBCN, REVIEWNOTE, WEREVIEW, REVIEW_EXPEDITION
-> REVE 및 API 크롤러 8개(OHMYBLOG~CHVU)는 17-arg 생성자 사용으로 currentApplicants 파라미터 자체가 없음(=null).
-> ALLJAM, CHERIVU, BLOGDEX, GUGUDAS, LINKTUBE, TOJOBCN, REVIEWNOTE, WEREVIEW는 parseDetailPage에서 currentApplicants를 coalesce하지 않고 기존값 그대로 반환.
-
-address 상세페이지 수집 (△11개): DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG, GANGNAM, SEOULOUBA, PLAYVIEW, GABOJA, ODIYA, OPENREVIEW, COMETOPLAY
-
----
-
-## 5. 희귀 필드 — 30% 미만 사이트에서 수집 (3개)
-
-| 필드 | 한국어명 | 커버리지 | 수집 사이트 |
-|------|----------|----------|-------------|
-| detailContent | 상세콘텐츠 | △6/46 (13%) | REVE (contentImage → HTML img 태그) + △5개 (DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG, TOJOBCN) |
-| announcementDate | 발표일 | △5/46 (11%) | REVE + △4개 (DAILYVIEW, REVIEWPLACE, OPENREVIEW, RINGBLE) |
-| applyStartDate | 신청시작일 | 3/46 (7%) | REVE, STYLEC, WEREVIEW |
-
----
-
-## 6. 사이트별 수집 필드 매트릭스 (46개)
+> 전체 등록 소스 44개, 활성 소스 40개 (REVU/ODIYA/REVIEW_EXPEDITION/WEREVIEW 비활성화, TOJOBCN/MBLE 삭제)
 
 범례: O=수집, X=null, △=상세페이지 enrichment로 조건부 수집
 
-공통 5개 필드(originalId(원본ID), title(제목), originalUrl(원본URL), category(카테고리), status(상태))는 모든 활성 사이트에서 O이므로 생략.
+컬럼 번호는 위 스키마의 필드 번호에 대응:
+- ①sourceCode ②originalId ③title ④description ⑤detailContent ⑥thumbnailUrl ⑦originalUrl ⑧category ⑨status
+- ⑩recruitCount ⑪applyStartDate ⑫applyEndDate ⑬announcementDate ⑭reward ⑮mission ⑯address ⑰keywords ⑱currentApplicants
 
-> **상세페이지 enrichment**: 활성 크롤러에 `DetailPageEnricher`가 적용됨. `parseDetailPage`가 상세 페이지 HTML에서 meta description, 신청자 수, 사이트별 추가 필드를 추출. 단, REVE는 enricher 미사용 (API에서 전체 데이터 직접 수집).
+> **상세페이지 enrichment**: 활성 크롤러에 `DetailPageEnricher`가 적용됨. `parseDetailPage`가 상세 페이지 HTML에서 meta description, 신청자 수, 주소, 사이트별 추가 필드를 추출. 단, REVE는 enricher 미사용 (API에서 전체 데이터 직접 수집).
+> **⑯ address 추출**: 모든 크롤러가 `DetailPageEnricher.extractAddress(doc)` 또는 자체 로직으로 주소 추출 시도. 라벨("주소","위치","업체주소","방문주소","매장주소","장소") 기반 탐색.
 
-### 6-1. API 기반 크롤러 (JSON/REST)
+### API 기반 크롤러 (JSON/REST) — 10개
 
-| 사이트 | 설명 | 상세콘텐츠 | 썸네일 | 모집인원 | 신청시작일 | 신청마감일 | 발표일 | 제공내역 | 미션 | 주소 | 키워드 | 신청자수 |
-|--------|:----:|:--------:|:-----:|:-------:|:--------:|:--------:|:-----:|:-------:|:----:|:----:|:-----:|:-------:|
-| REVE | O | O | O | O | O | O | O | O | O | O | O | X |
-| OHMYBLOG | △ | X | O | O | X | O | X | O | O | X | O | X |
-| WHOGIUP | △ | X | O | O | X | O | X | O | O | X | O | X |
-| WEU | △ | X | O | O | X | O | X | X | O | X | O | X |
-| STYLEC | △ | X | O | O | O | O | X | O | O | X | O | X |
-| FINEADPLE | △ | X | O | O | X | O | X | O | O | X | O | X |
-| FOURBLOG | △ | X | O | O | X | O | X | O | O | X | O | X |
-| POPOMON | △ | X | O | O | X | O | X | O | O | X | O | X |
-| CHVU | △ | X | O | O | X | O | X | O | O | X | O | X |
-| DINNERQUEEN | △ | X | O | △ | X | O | X | △ | O | X | O | △ |
+| 사이트 | ① | ② | ③ | ④ | ⑤ | ⑥ | ⑦ | ⑧ | ⑨ | ⑩ | ⑪ | ⑫ | ⑬ | ⑭ | ⑮ | ⑯ | ⑰ | ⑱ | 합계 |
+|--------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:---:|
+| REVE | O | O | O | O | O | O | O | O | O | O | O | O | O | O | O | O | O | X | 17 |
+| OHMYBLOG | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| WHOGIUP | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| WEU | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | O | O | O | 14 |
+| STYLEC | O | O | O | △ | X | O | O | O | O | O | O | O | X | O | O | △ | O | X | 14 |
+| FINEADPLE | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| FOURBLOG | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| POPOMON | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| CHVU | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| DINNERQUEEN | O | O | O | △ | X | O | O | O | O | △ | X | O | X | △ | O | △ | O | △ | 14 |
 
-### 6-2. Tanzsoft 계열 크롤러 (동일 JSON 구조)
+### Tanzsoft 계열 크롤러 (동일 JSON 구조) — 4개
 
-| 사이트 | 설명 | 상세콘텐츠 | 썸네일 | 모집인원 | 신청시작일 | 신청마감일 | 발표일 | 제공내역 | 미션 | 주소 | 키워드 | 신청자수 |
-|--------|:----:|:--------:|:-----:|:-------:|:--------:|:--------:|:-----:|:-------:|:----:|:----:|:-----:|:-------:|
-| DAILYVIEW | O | △ | O | O | X | O | △ | O | O | △ | O | △ |
-| BLOGLAB | O | △ | O | O | X | O | X | O | O | △ | O | △ |
-| PAVLOVU | O | △ | O | O | X | O | X | O | O | △ | O | △ |
-| YOGITG | O | △ | O | O | X | O | X | O | O | △ | O | △ |
+| 사이트 | ① | ② | ③ | ④ | ⑤ | ⑥ | ⑦ | ⑧ | ⑨ | ⑩ | ⑪ | ⑫ | ⑬ | ⑭ | ⑮ | ⑯ | ⑰ | ⑱ | 합계 |
+|--------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:---:|
+| DAILYVIEW | O | O | O | O | △ | O | O | O | O | O | X | O | △ | O | O | △ | O | △ | 16 |
+| BLOGLAB | O | O | O | O | △ | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| PAVLOVU | O | O | O | O | △ | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| YOGITG | O | O | O | O | △ | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
 
-### 6-3. SSR HTML 파싱 크롤러 (Jsoup)
+### SSR HTML 파싱 크롤러 (Jsoup) — 25개
 
-| 사이트 | 설명 | 상세콘텐츠 | 썸네일 | 모집인원 | 신청시작일 | 신청마감일 | 발표일 | 제공내역 | 미션 | 주소 | 키워드 | 신청자수 |
-|--------|:----:|:--------:|:-----:|:-------:|:--------:|:--------:|:-----:|:-------:|:----:|:----:|:-----:|:-------:|
-| REVU | O | X | O | O | X | O | X | △ | △ | X | X | △ |
-| MBLE | O | X | O | O | X | O | X | △ | △ | X | X | △ |
-| GANGNAM | △ | X | O | O | X | O | X | O | O | △ | X | △ |
-| SEOULOUBA | △ | X | O | O | X | O | X | O | O | △ | O | △ |
-| REVIEWPLACE | △ | X | O | O | X | O | △ | O | O | X | O | △ |
-| ALLJAM | △ | X | O | O | X | X | X | O | O | X | O | X |
-| CHERIVU | △ | X | O | O | X | O | X | O | O | X | O | X |
-| CHERRYCOOK | △ | X | O | O | X | O | X | △ | △ | X | O | △ |
-| CHEHUMDAN | △ | X | O | O | X | △ | X | O | △ | X | O | △ |
-| CLOUDREVIEW | △ | X | O | O | X | O | X | △ | O | X | O | △ |
-| TQUEENS | △ | X | O | △ | X | O | X | △ | O | X | O | △ |
-| TBLE | △ | X | O | O | X | O | X | O | O | X | O | △ |
-| PLAYVIEW | △ | X | O | O | X | O | X | O | O | △ | O | △ |
-| HUKI | △ | X | O | O | X | O | X | O | △ | X | O | △ |
-| ASSAVIEW | △ | X | O | O | X | O | X | O | O | X | O | △ |
-| BEAUTY_QUEEN | △ | X | O | △ | X | O | X | △ | O | X | O | △ |
-| BLOGDEX | △ | X | O | O | X | O | X | O | O | O | O | X |
-| DDOK | △ | X | O | O | X | O | X | △ | △ | X | O | △ |
-| GABOJA | △ | X | O | O | X | O | X | O | O | △ | O | △ |
-| GUGUDAS | △ | X | O | O | X | O | X | O | O | O | O | X |
-| MIBLE | △ | X | O | O | X | O | X | O | O | O | O | △ |
-| ODIYA | △ | X | O | O | X | O | X | △ | O | △ | O | △ |
-| OPENREVIEW | △ | X | O | O | X | O | △ | O | O | △ | O | △ |
-| REAL_REVIEW | △ | X | O | O | X | △ | X | △ | △ | X | O | △ |
-| RINGBLE | △ | X | O | X | X | O | △ | △ | O | X | O | △ |
-| COMETOPLAY | △ | X | O | O | X | O | X | △ | O | △ | O | △ |
-| LINKTUBE | △ | X | O | X | X | X | X | △ | O | X | O | X |
-| TOJOBCN | △ | △ | X | X | X | X | X | △ | O | X | O | X |
-| STORYNMEDIA | △ | X | O | △ | X | △ | X | △ | O | X | O | △ |
+| 사이트 | ① | ② | ③ | ④ | ⑤ | ⑥ | ⑦ | ⑧ | ⑨ | ⑩ | ⑪ | ⑫ | ⑬ | ⑭ | ⑮ | ⑯ | ⑰ | ⑱ | 합계 |
+|--------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:---:|
+| GANGNAM | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | X | △ | 13 |
+| SEOULOUBA | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| REVIEWPLACE | O | O | O | △ | X | O | O | O | O | O | X | O | △ | O | O | △ | O | △ | 15 |
+| ALLJAM | O | O | O | △ | X | O | O | O | O | O | X | X | X | O | O | △ | O | X | 12 |
+| CHERIVU | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | X | 13 |
+| CHERRYCOOK | O | O | O | △ | X | O | O | O | O | O | X | O | X | △ | △ | △ | O | △ | 14 |
+| CHEHUMDAN | O | O | O | △ | X | O | O | O | O | O | X | △ | X | O | △ | O | O | △ | 14 |
+| CLOUDREVIEW | O | O | O | △ | X | O | O | O | O | O | X | O | X | △ | O | △ | O | △ | 14 |
+| TQUEENS | O | O | O | △ | X | O | O | O | O | △ | X | O | X | △ | O | △ | O | △ | 14 |
+| TBLE | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| PLAYVIEW | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| HUKI | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | △ | △ | O | △ | 14 |
+| ASSAVIEW | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| BEAUTY_QUEEN | O | O | O | △ | X | O | O | O | O | △ | X | O | X | △ | O | △ | O | △ | 14 |
+| BLOGDEX | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | O | O | X | 14 |
+| DDOK | O | O | O | △ | X | O | O | O | O | O | X | O | X | △ | △ | △ | O | △ | 14 |
+| GABOJA | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | △ | O | △ | 14 |
+| GUGUDAS | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | O | O | X | 14 |
+| MIBLE | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | O | O | △ | 14 |
+| OPENREVIEW | O | O | O | △ | X | O | O | O | O | O | X | O | △ | O | O | △ | O | △ | 15 |
+| REAL_REVIEW | O | O | O | △ | X | O | O | O | O | O | X | △ | X | △ | △ | △ | O | △ | 14 |
+| RINGBLE | O | O | O | △ | X | O | O | O | O | X | X | O | △ | △ | O | △ | O | △ | 14 |
+| COMETOPLAY | O | O | O | △ | X | O | O | O | O | O | X | O | X | △ | O | △ | O | △ | 15 |
+| LINKTUBE | O | O | O | △ | X | O | O | O | O | X | X | X | X | △ | O | △ | O | X | 11 |
+| STORYNMEDIA | O | O | O | △ | X | O | O | O | O | △ | X | △ | X | △ | O | △ | O | △ | 14 |
 
-### 6-4. Next.js SSR / SPA 크롤러
+### Next.js SSR 크롤러 — 1개
 
-| 사이트 | 설명 | 상세콘텐츠 | 썸네일 | 모집인원 | 신청시작일 | 신청마감일 | 발표일 | 제공내역 | 미션 | 주소 | 키워드 | 신청자수 |
-|--------|:----:|:--------:|:-----:|:-------:|:--------:|:--------:|:-----:|:-------:|:----:|:----:|:-----:|:-------:|
-| REVIEWNOTE | △ | X | O | O | X | O | X | O | O | O | O | X |
-| WEREVIEW | △ | X | O | O | O | O | X | X | O | X | O | X |
+| 사이트 | ① | ② | ③ | ④ | ⑤ | ⑥ | ⑦ | ⑧ | ⑨ | ⑩ | ⑪ | ⑫ | ⑬ | ⑭ | ⑮ | ⑯ | ⑰ | ⑱ | 합계 |
+|--------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:---:|
+| REVIEWNOTE | O | O | O | △ | X | O | O | O | O | O | X | O | X | O | O | O | O | X | 14 |
 
-### 6-5. 오프라인/비활성 크롤러
+### 비활성 크롤러 (4개, data.sql active=false)
 
 | 사이트 | 상태 | 비고 |
 |--------|------|------|
-| REVIEW_EXPEDITION | 사이트 오프라인 | DNS 해석 실패, 빈 리스트 반환. 전체 필드 X. |
+| REVU | 비활성 | AngularJS SPA, Jsoup 파싱 불가. REVE API 크롤러가 대체. |
+| ODIYA | 비활성 | DNS 해석 실패, 사이트 다운 지속. |
+| REVIEW_EXPEDITION | 비활성 | 사이트 폐쇄 (DNS 조회 실패). |
+| WEREVIEW | 비활성 | 숏폼(릴스/틱톡) 전문, 블로그 체험단 아님. |
 
 ---
 
-## 7. 미수집 원본 데이터 (CrawledCampaign에 없는 필드)
+## 3. 필드별 수집 커버리지 요약 (활성 40개 기준)
+
+| # | 필드 | 한국어명 | O | △ | X | 수집합계 | 비율 | 미수집 사이트 |
+|---|------|----------|:-:|:-:|:-:|:-------:|:----:|---------------|
+| 1 | sourceCode | 소스코드 | 40 | 0 | 0 | 40 | 100% | - |
+| 2 | originalId | 원본ID | 40 | 0 | 0 | 40 | 100% | - |
+| 3 | title | 제목 | 40 | 0 | 0 | 40 | 100% | - |
+| 4 | description | 설명 | 4 | 36 | 0 | 40 | 100% | - |
+| 5 | detailContent | 상세콘텐츠 | 1 | 4 | 35 | 5 | 13% | REVE/Tanzsoft 외 전부 |
+| 6 | thumbnailUrl | 썸네일URL | 40 | 0 | 0 | 40 | 100% | - |
+| 7 | originalUrl | 원본URL | 40 | 0 | 0 | 40 | 100% | - |
+| 8 | category | 카테고리 | 40 | 0 | 0 | 40 | 100% | - |
+| 9 | status | 상태 | 40 | 0 | 0 | 40 | 100% | - |
+| 10 | recruitCount | 모집인원 | 34 | 4 | 2 | 38 | 95% | RINGBLE, LINKTUBE |
+| 11 | applyStartDate | 신청시작일 | 2 | 0 | 38 | 2 | 5% | REVE, STYLEC 외 전부 |
+| 12 | applyEndDate | 신청마감일 | 34 | 4 | 2 | 38 | 95% | ALLJAM, LINKTUBE |
+| 13 | announcementDate | 발표일 | 1 | 4 | 35 | 5 | 13% | REVE/DAILYVIEW/REVIEWPLACE/OPENREVIEW/RINGBLE 외 전부 |
+| 14 | reward | 제공내역 | 30 | 10 | 0 | 40 | 100% | - |
+| 15 | mission | 미션 | 35 | 5 | 0 | 40 | 100% | - |
+| 16 | address | 주소 | 7 | 33 | 0 | 40 | 100% | - |
+| 17 | keywords | 키워드 | 39 | 0 | 1 | 39 | 98% | GANGNAM |
+| 18 | currentApplicants | 신청자수 | 1 | 25 | 14 | 26 | 65% | 아래 참고 |
+
+> △ = 상세페이지 enrichment로 조건부 수집. `detail-fetch-enabled: true` 시에만 동작.
+> SPA 사이트는 Jsoup으로 동적 콘텐츠를 가져올 수 없어 △ 필드의 실제 수집률은 SSR 사이트보다 낮을 수 있음.
+
+### ⑯ address(주소) 추출 방식 상세
+
+| 방식 | 사이트 수 | 사이트 | 추출 로직 |
+|------|:---------:|--------|-----------|
+| O (API/리스트 직접) | 7 | REVE, WEU, BLOGDEX, GUGUDAS, MIBLE, REVIEWNOTE, CHEHUMDAN | API 필드 또는 리스트 HTML에서 직접 추출 |
+| △ (커스텀 parseDetailPage) | 10 | GANGNAM, SEOULOUBA, PLAYVIEW, GABOJA, OPENREVIEW, COMETOPLAY, DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG | 상세페이지에서 "주소/위치" 라벨 자체 탐색 + enricher |
+| △ (enricher만) | 23 | 나머지 전부 | `DetailPageEnricher.extractAddress(doc)` + `coalesce` |
+
+> `DetailPageEnricher.extractAddress()`는 `ADDRESS_LABELS = {"주소", "위치", "업체주소", "방문주소", "매장주소", "장소"}` 라벨을 `<th>`, `<dt>`, `.label`, `.tit`, `<strong>`, `<b>`, `<span>` 요소에서 탐색하여 형제 요소의 주소 텍스트(5~200자)를 추출.
+> 방문형 캠페인의 상세 페이지에는 "서울", "경기", "인천" 등의 실제 주소가 포함되어 있으므로 enricher가 정상 추출 가능.
+
+### 수집률 등급 분류
+
+| 등급 | 기준 | 해당 필드 (개수) |
+|------|------|-----------------|
+| 공통 (100%) | 40/40 | sourceCode, originalId, title, description, thumbnailUrl, originalUrl, category, status, reward, mission, address (11개) |
+| 준공통 (95-98%) | 38-39/40 | recruitCount, applyEndDate, keywords (3개) |
+| 선택 (65%) | 26/40 | currentApplicants (1개) |
+| 희귀 (5-13%) | 2-5/40 | detailContent, announcementDate, applyStartDate (3개) |
+
+### currentApplicants(신청자수) 미수집 사이트 (14개)
+
+REVE, OHMYBLOG, WHOGIUP, STYLEC, FINEADPLE, FOURBLOG, POPOMON, CHVU, ALLJAM, CHERIVU, BLOGDEX, GUGUDAS, LINKTUBE, REVIEWNOTE
+
+---
+
+## 4. 사이트별 수집 필드 수 랭킹
+
+| 순위 | 사이트 | 수집 필드 수 | 유형 |
+|:----:|--------|:----------:|------|
+| 1 | REVE | 17/18 | API |
+| 2 | DAILYVIEW | 16/18 | Tanzsoft |
+| 3 | OPENREVIEW | 15/18 | SSR |
+| 3 | REVIEWPLACE | 15/18 | SSR |
+| 3 | COMETOPLAY | 15/18 | SSR |
+| 6 | WEU | 14/18 | API |
+| 6 | STYLEC | 14/18 | API |
+| 6 | DINNERQUEEN | 14/18 | API |
+| 6 | BLOGLAB | 14/18 | Tanzsoft |
+| 6 | PAVLOVU | 14/18 | Tanzsoft |
+| 6 | YOGITG | 14/18 | Tanzsoft |
+| 6 | SEOULOUBA | 14/18 | SSR |
+| 6 | CHERRYCOOK | 14/18 | SSR |
+| 6 | CHEHUMDAN | 14/18 | SSR |
+| 6 | CLOUDREVIEW | 14/18 | SSR |
+| 6 | TQUEENS | 14/18 | SSR |
+| 6 | TBLE | 14/18 | SSR |
+| 6 | PLAYVIEW | 14/18 | SSR |
+| 6 | HUKI | 14/18 | SSR |
+| 6 | ASSAVIEW | 14/18 | SSR |
+| 6 | BEAUTY_QUEEN | 14/18 | SSR |
+| 6 | BLOGDEX | 14/18 | SSR |
+| 6 | DDOK | 14/18 | SSR |
+| 6 | GABOJA | 14/18 | SSR |
+| 6 | GUGUDAS | 14/18 | SSR |
+| 6 | MIBLE | 14/18 | SSR |
+| 6 | REAL_REVIEW | 14/18 | SSR |
+| 6 | RINGBLE | 14/18 | SSR |
+| 6 | STORYNMEDIA | 14/18 | SSR |
+| 6 | REVIEWNOTE | 14/18 | Next.js |
+| 31 | OHMYBLOG | 13/18 | API |
+| 31 | WHOGIUP | 13/18 | API |
+| 31 | FINEADPLE | 13/18 | API |
+| 31 | FOURBLOG | 13/18 | API |
+| 31 | POPOMON | 13/18 | API |
+| 31 | CHVU | 13/18 | API |
+| 31 | GANGNAM | 13/18 | SSR |
+| 31 | CHERIVU | 13/18 | SSR |
+| 39 | ALLJAM | 12/18 | SSR |
+| 40 | LINKTUBE | 11/18 | SSR |
+
+> 평균 수집 필드: 13.9/18 (77%)
+> REVE가 17개 필드로 가장 많이 수집 (currentApplicants만 미수집).
+> LINKTUBE가 11개 필드로 가장 적게 수집 (활성 사이트 중).
+
+---
+
+## 5. 미수집 원본 데이터 (CrawledCampaign에 없는 필드)
 
 각 사이트의 API/HTML 응답에서 확인되지만 현재 CrawledCampaign 스키마에 매핑되지 않는 데이터.
 
-### 7-1. 다수 사이트에서 공통 제공하지만 미매핑
+### 5-1. 다수 사이트에서 공통 제공하지만 미매핑
 
 | 원본 필드 | 제공 사이트 | 설명 |
 |-----------|-------------|------|
@@ -177,7 +224,7 @@ address 상세페이지 수집 (△11개): DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG, 
 | 캠페인 타입 (campaignType, type) | WEU, POPOMON, REVE, REVIEWPLACE | 방문형/배송형/구매형/기자단 등 |
 | 지역/시도 (region, city, sido) | REVIEWNOTE, REVE, SEOULOUBA, MIBLE | 시/도 단위 지역 정보 |
 
-### 7-2. 개별 사이트에서만 제공
+### 5-2. 개별 사이트에서만 제공
 
 | 사이트 | 원본 필드 | 설명 |
 |--------|-----------|------|
@@ -199,65 +246,24 @@ address 상세페이지 수집 (△11개): DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG, 
 
 ---
 
-## 8. 크롤링 방식별 데이터 풍부도 비교
+## 6. 크롤링 방식별 데이터 풍부도 비교
 
 | 크롤링 방식 | 사이트 수 | 평균 수집 필드 | 특징 |
 |-------------|-----------|---------------|------|
-| REST API (JSON) | 10 | 13.4/18 | 구조화된 데이터, REVE만 17/18 수집 |
-| Tanzsoft JSON | 4 | 15.3/18 | 동일 플랫폼 기반, enrichment로 detailContent/address/announcementDate 추가 |
-| SSR HTML (Jsoup) | 29 | 12.5/18 | 가장 많은 사이트, enrichment로 description/reward/currentApplicants 추가 |
-| Next.js SSR/SPA | 2 | 12.5/18 | dehydrated state 파싱 + og:description enrichment |
-
-### 방식별 필드 특성
-
-**API 기반 (JSON)** — REVE가 17/18개 필드 수집 (currentApplicants만 미수집: 17-arg 생성자 사용). 나머지 API 크롤러는 enricher로 description(△)만 추가. DINNERQUEEN은 enricher에서 recruitCount(△), reward(△), currentApplicants(△)도 추가.
-
-**Tanzsoft 계열** — DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG 4개 사이트가 동일 JSON 구조. 리스트에서 description, reward를 직접 수집(O). enrichment로 detailContent(△), address(△), currentApplicants(△) 추가. DAILYVIEW만 announcementDate(△) 추가.
-
-**SSR HTML (Jsoup)** — 29개로 가장 큰 그룹. enrichment 적용으로 description(meta 태그), currentApplicants("신청 N" 패턴), 사이트별 추가 필드(reward, mission, address) 수집 가능. 단, 일부 크롤러는 parseDetailPage에서 currentApplicants coalesce를 사용하지 않아 미수집 (ALLJAM, CHERIVU, BLOGDEX, GUGUDAS).
-
-**Next.js/SPA** — REVIEWNOTE는 address 수집 가능. WEREVIEW는 applyStartDate 수집 가능하나 숏폼 특화로 reward 미제공. 두 사이트 모두 og:description enrichment 적용. 두 사이트 모두 currentApplicants 미수집.
+| REST API (JSON) | 10 | 13.7/18 | 구조화된 데이터, REVE만 17/18 수집 |
+| Tanzsoft JSON | 4 | 14.5/18 | 동일 플랫폼 기반, enrichment로 detailContent/address/announcementDate 추가 |
+| SSR HTML (Jsoup) | 25 | 13.8/18 | 가장 많은 사이트, enrichment로 description/reward/address/currentApplicants 추가 |
+| Next.js SSR | 1 | 14.0/18 | dehydrated state 파싱 + og:description enrichment |
 
 ---
 
-## 9. 필드 수집률 요약
-
-| 필드 | 한국어명 | 수집 사이트 수 | 비율 | 등급 |
-|------|----------|---------------|------|------|
-| originalId | 원본ID | 45 | 98% | 공통 |
-| title | 제목 | 45 | 98% | 공통 |
-| originalUrl | 원본URL | 45 | 98% | 공통 |
-| category | 카테고리 | 45 | 98% | 공통 |
-| status | 상태 | 45 | 98% | 공통 |
-| description | 설명 | △45 | 98% | 준공통 |
-| mission | 미션 | △45 | 98% | 준공통 |
-| thumbnailUrl | 썸네일URL | 44 | 96% | 준공통 |
-| reward | 제공내역 | △43 | 93% | 준공통 |
-| keywords | 키워드 | 42 | 91% | 준공통 |
-| recruitCount | 모집인원 | △42 | 91% | 준공통 |
-| applyEndDate | 신청마감일 | △42 | 91% | 준공통 |
-| currentApplicants | 현재신청자수 | △28 | 61% | 선택 |
-| address | 주소 | △16 | 35% | 선택 |
-| detailContent | 상세콘텐츠 | △6 | 13% | 희귀 |
-| announcementDate | 발표일 | △5 | 11% | 희귀 |
-| applyStartDate | 신청시작일 | 3 | 7% | 희귀 |
-
-> △ = 상세페이지 enrichment로 조건부 수집 포함. `detail-fetch-enabled: true` 시에만 동작.
-> REVE(레뷰 API)가 17개 필드로 가장 많이 수집하는 사이트 (currentApplicants만 미수집).
-> TOJOBCN(투잡커넥트)이 가장 적은 필드 수집 (10개: 공통 5 + description△ + detailContent△ + reward△ + mission + keywords).
-> REVIEW_EXPEDITION은 사이트 오프라인으로 전체 필드 미수집.
-
----
-
-## 10. 사이트별 최대 수집 건수
+## 7. 사이트별 최대 수집 건수
 
 1회 크롤링 시 사이트별로 최대 몇 개의 캠페인을 수집할 수 있는지 정리한다.
 
 **글로벌 설정**: `max-pages-per-site: 5` (`application-local.yml:29`)
 
 ### A. 페이지네이션 크롤러 (maxPagesPerSite=5 적용) — 25개
-
-페이지 번호를 증가시키며 `maxPagesPerSite`까지 반복하는 크롤러.
 
 | 사이트명 | 페이지당 건수 | 섹션 수 | 최대 건수 공식 | 예상 최대 건수 |
 |----------|:------------:|:------:|---------------|:------------:|
@@ -289,8 +295,6 @@ address 상세페이지 수집 (△11개): DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG, 
 
 ### B. 단일 페이지 크롤러 (페이지네이션 없음) — 12개
 
-한 번의 HTTP 요청으로 리스트 페이지를 가져와 파싱하는 크롤러.
-
 | 사이트명 | 비고 | 예상 최대 건수 |
 |----------|------|:------------:|
 | REVIEWPLACE | 홈페이지 전체 아이템 | ~20-30 |
@@ -307,8 +311,6 @@ address 상세페이지 수집 (△11개): DAILYVIEW, BLOGLAB, PAVLOVU, YOGITG, 
 | WEREVIEW | Next.js SSR 단일 페이지 | ~10-15 |
 
 ### C. 고정 다중 페이지/섹션 크롤러 — 6개
-
-여러 섹션/카테고리/정렬을 순회하거나 고정 파라미터로 대량 요청하는 크롤러.
 
 | 사이트명 | 수집 방식 | 예상 최대 건수 |
 |----------|----------|:------------:|

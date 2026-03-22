@@ -162,7 +162,7 @@ CrawlingSource DB 전환(Phase 43-47) 이후 추가되어 data.sql에 등록된 
 | 5 | COMETOPLAY | 놀러와체험단 | SUCCESS | SSR (Jsoup) | `span.it_name` 20건, 컨테이너 셀렉터 수정 |
 | 6 | DDOK | 똑똑체험단 | SUCCESS | SSR (Jsoup) | `div.cpitem` 24건, onclick ID 추출 |
 | 7 | CLOUDREVIEW | 클라우드리뷰 | SUCCESS | SSR (Jsoup) | `#campaign-lists` 799건, `img.lazy[data-original]` |
-| 8 | CHEHUMDAN | 체험단닷컴 | SUCCESS | SSR (Jsoup) | `div.thum-box` 80건, `p.list-tit > a` |
+| 8 | CHEHUMDAN | 체험단닷컴 | SUCCESS | SSR (Jsoup) | `category.php` 페이징 크롤링으로 개선 (2026-03-22), 6개 카테고리 자동 발견, `div.thum-box`, firecrawl로 사이트 분석 |
 | 9 | TBLE | 티블 | SUCCESS | SSR (Jsoup) | `div.campain_list > div.item` 264건 |
 | 10 | PLAYVIEW | 플레이뷰 | SUCCESS | SSR (Jsoup) | `div.campaign_list > div.item` 261건 |
 | 11 | HUKI | 후키 | SUCCESS | SSR (Jsoup) | `ul.c_list > li` 13건, 4개 카테고리 순회 |
@@ -211,3 +211,5 @@ CrawlingSource DB 전환(Phase 43-47) 이후 추가되어 data.sql에 등록된 
 - 크롤러 구현체: `src/main/java/com/example/experienceplatform/campaign/infrastructure/crawling/crawler/`
 - CrawlingSource 시드 데이터: `src/main/resources/data.sql`
 - 크롤링 설정: `src/main/resources/application-local.yml`
+- 스킬 디렉토리: `.claude/skills/` (firecrawl, browser-automation 등 15개 스킬)
+- site-crawler 에이전트: `.claude/agents/site-crawler.md`
