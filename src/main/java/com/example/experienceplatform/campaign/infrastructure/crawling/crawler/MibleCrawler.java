@@ -45,7 +45,7 @@ public class MibleCrawler implements CampaignCrawler {
 
     @Override
     public String getCrawlerType() {
-        return "MIBLE";
+        return "MRBLOG";
     }
 
     @Override
@@ -175,11 +175,16 @@ public class MibleCrawler implements CampaignCrawler {
             reward = rewardEl.text().trim();
         }
 
-        // Region
+        // Region - span.area 내부 텍스트 (sns_icon 자식 제외)
         String region = null;
         Element areaEl = item.selectFirst("span.area");
         if (areaEl != null) {
-            region = areaEl.text().trim();
+            region = areaEl.ownText().trim();
+            if (region.isEmpty()) {
+                // ownText가 비어있으면 전체 text에서 정리
+                region = areaEl.text().trim();
+            }
+            if (region.isEmpty()) region = null;
         }
 
         CampaignCategory category = CategoryMapper.map(title);
@@ -188,7 +193,7 @@ public class MibleCrawler implements CampaignCrawler {
                 source.getCode(), originalId, title, null, null,
                 thumbnailUrl, originalUrl, category, status,
                 recruitCount, null, applyEndDate, null,
-                reward, "블로그 리뷰 작성", region, "미블,체험단"
+                reward, "블로그 리뷰 작성", region, "미블,mrblog,체험단"
         );
     }
 

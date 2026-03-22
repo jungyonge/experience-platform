@@ -292,14 +292,6 @@ public class ChehumdanCrawler implements CampaignCrawler {
         String reward = item.select("p.list-txt").text().trim();
         if (reward.isEmpty()) reward = null;
 
-        // 지역: list-day 내 [지역] 패턴
-        String address = null;
-        String dayText = item.select("p.list-day").text();
-        Matcher addrMatcher = Pattern.compile("\\[([^]]+)]").matcher(dayText);
-        if (addrMatcher.find()) {
-            address = addrMatcher.group(1).trim();
-        }
-
         // 카테고리 추론
         CampaignCategory category = CategoryMapper.map(title);
 
@@ -309,7 +301,7 @@ public class ChehumdanCrawler implements CampaignCrawler {
                 source.getCode(), originalId, title, null, null,
                 thumbnailUrl, originalUrl, category, status,
                 recruitCount, null, null, null,
-                reward, null, address, "체험단닷컴,체험단",
+                reward, null, null, "체험단닷컴,체험단",
                 currentApplicants
         );
     }

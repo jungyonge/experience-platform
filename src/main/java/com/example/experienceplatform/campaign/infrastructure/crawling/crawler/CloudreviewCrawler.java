@@ -28,8 +28,6 @@ public class CloudreviewCrawler implements CampaignCrawler {
     private static final Pattern ID_PATTERN = Pattern.compile("/campaign/detail/(\\d+)");
     private static final Pattern DDAY_PATTERN = Pattern.compile("(\\d+)일\\s*남음");
     private static final Pattern RECRUIT_PATTERN = Pattern.compile("(\\d+)인\\s*모집");
-    private static final Pattern ADDRESS_FROM_TITLE = Pattern.compile(
-            "\\[(?:[가-힣]+\\]\\s*\\[)?((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^\\]]*)]");
 
     private final CrawlingProperties properties;
     private final JsoupClient jsoupClient;
@@ -113,8 +111,6 @@ public class CloudreviewCrawler implements CampaignCrawler {
         String detailContent = DetailPageEnricher.extractDetailContent(doc);
         LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
         LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
-        String address = DetailPageEnricher.extractAddress(doc);
-
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
@@ -123,7 +119,7 @@ public class CloudreviewCrawler implements CampaignCrawler {
                 campaign.getRecruitCount(), coalesce(campaign.getApplyStartDate(), applyStartDate),
                 campaign.getApplyEndDate(), coalesce(campaign.getAnnouncementDate(), announcementDate),
                 coalesce(campaign.getReward(), reward), campaign.getMission(),
-                coalesce(campaign.getAddress(), address), campaign.getKeywords(),
+                campaign.getAddress(), campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );
     }
@@ -208,18 +204,11 @@ public class CloudreviewCrawler implements CampaignCrawler {
 
         CampaignCategory category = CategoryMapper.map(title + " " + keywords);
 
-        // 제목에서 주소 추출: "[경기 화성시] 매장명" → "경기 화성시"
-        String address = null;
-        Matcher addrMatcher = ADDRESS_FROM_TITLE.matcher(title);
-        if (addrMatcher.find()) {
-            address = addrMatcher.group(1).trim();
-        }
-
         return new CrawledCampaign(
                 source.getCode(), originalId, title, null, null,
                 thumbnailUrl, originalUrl, category, status,
                 recruitCount, null, applyEndDate, null,
-                null, "블로그 리뷰 작성", address, keywords
+                null, "블로그 리뷰 작성", null, keywords
         );
     }
 

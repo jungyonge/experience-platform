@@ -120,8 +120,6 @@ public class AlljamCrawler implements CampaignCrawler {
         LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
         LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
         LocalDate applyEndDate = DetailPageEnricher.extractApplyStartDate(doc);
-        String address = DetailPageEnricher.extractAddress(doc);
-
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),
                 coalesce(campaign.getDescription(), description),
@@ -133,7 +131,7 @@ public class AlljamCrawler implements CampaignCrawler {
                 coalesce(campaign.getApplyEndDate(), applyEndDate),
                 coalesce(campaign.getAnnouncementDate(), announcementDate),
                 campaign.getReward(), campaign.getMission(),
-                coalesce(campaign.getAddress(), address),
+                campaign.getAddress(),
                 campaign.getKeywords(),
                 coalesce(campaign.getCurrentApplicants(), currentApplicants)
         );

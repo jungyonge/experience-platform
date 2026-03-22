@@ -108,9 +108,51 @@ public class PopomonCrawler implements CampaignCrawler {
             }
         }
 
+        enrichAddressFromApi(results);
         results = enricher.enrich(results, this::parseDetailPage);
         log.info("POPOMON 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private static final String DETAIL_API_URL = "https://popomon.com/api_p/campaignDetail/fetch_getCampaignData";
+
+    private void enrichAddressFromApi(List<CrawledCampaign> results) {
+        for (int i = 0; i < results.size(); i++) {
+            CrawledCampaign c = results.get(i);
+            if (c.getAddress() != null) continue;
+            try {
+                Thread.sleep(50);
+                String url = DETAIL_API_URL + "?contentIdx=" + c.getOriginalId();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("Accept", "application/json")
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .GET()
+                        .build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    JsonNode root = objectMapper.readTree(response.body());
+                    JsonNode cd = root.path("data").path("contentsData");
+                    String addrFull = cd.path("C_address_full").asText("").trim();
+                    if (addrFull.isEmpty()) {
+                        String addr = cd.path("C_address").asText("").trim();
+                        String detail = cd.path("C_address_detail").asText("").trim();
+                        addrFull = detail.isEmpty() ? addr : addr + " " + detail;
+                    }
+                    if (!addrFull.isEmpty()) {
+                        results.set(i, new CrawledCampaign(
+                                c.getSourceCode(), c.getOriginalId(), c.getTitle(),
+                                c.getDescription(), c.getDetailContent(), c.getThumbnailUrl(), c.getOriginalUrl(),
+                                c.getCategory(), c.getStatus(), c.getRecruitCount(),
+                                c.getApplyStartDate(), c.getApplyEndDate(), c.getAnnouncementDate(),
+                                c.getReward(), c.getMission(), addrFull, c.getKeywords(), c.getCurrentApplicants()));
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("POPOMON 주소 API 호출 실패 {}: {}", c.getOriginalId(), e.getMessage());
+            }
+        }
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {

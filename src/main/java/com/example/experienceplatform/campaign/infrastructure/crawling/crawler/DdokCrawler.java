@@ -87,9 +87,49 @@ public class DdokCrawler implements CampaignCrawler {
         } catch (Exception e) {
             log.error("DDOK 크롤링 실패: {}", e.getMessage());
         }
+        enrichAddressFromAjax(results);
         results = enricher.enrich(results, this::parseDetailPage);
         log.info("DDOK 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private void enrichAddressFromAjax(List<CrawledCampaign> results) {
+        for (int i = 0; i < results.size(); i++) {
+            CrawledCampaign c = results.get(i);
+            if (c.getAddress() != null && c.getAddress().matches(".*(?:로|길|동)\\s*\\d+.*")) continue;
+            try {
+                Thread.sleep(100);
+                String ajaxUrl = BASE_URL + "/?m=campaign&_ax=view&uid=" + c.getOriginalId();
+                Document doc = jsoupClient.fetch(ajaxUrl);
+                // "업체 주소" 라벨에서 추출
+                String address = null;
+                for (Element el : doc.select("td > strong, th")) {
+                    if (el.text().contains("업체 주소") || el.text().contains("업체주소")) {
+                        Element parent = el.parent();
+                        Element next = parent != null ? parent.nextElementSibling() : el.nextElementSibling();
+                        if (next != null) {
+                            address = next.text().replaceFirst("^-\\s*", "").trim();
+                            if (address.length() >= 5) break;
+                            address = null;
+                        }
+                    }
+                }
+                // fallback: "위치안내" 영역의 도로명 주소
+                if (address == null) {
+                    address = DetailPageEnricher.extractAddress(doc);
+                }
+                if (address != null && !address.isEmpty()) {
+                    results.set(i, new CrawledCampaign(
+                            c.getSourceCode(), c.getOriginalId(), c.getTitle(),
+                            c.getDescription(), c.getDetailContent(), c.getThumbnailUrl(), c.getOriginalUrl(),
+                            c.getCategory(), c.getStatus(), c.getRecruitCount(),
+                            c.getApplyStartDate(), c.getApplyEndDate(), c.getAnnouncementDate(),
+                            c.getReward(), c.getMission(), address, c.getKeywords(), c.getCurrentApplicants()));
+                }
+            } catch (Exception e) {
+                log.debug("DDOK AJAX 주소 추출 실패 {}: {}", c.getOriginalId(), e.getMessage());
+            }
+        }
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {

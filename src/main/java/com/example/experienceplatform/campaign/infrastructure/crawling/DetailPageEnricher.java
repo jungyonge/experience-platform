@@ -202,10 +202,12 @@ public class DetailPageEnricher {
      */
     public static String extractAddress(Document doc) {
         // ── 전략 A: 라벨 기반 탐색 ──
-        for (Element el : doc.select("th, dt, .label, .tit, .tit_basic, strong, b, span")) {
+        for (Element el : doc.select("th, dt, .label, .tit, .tit_basic, strong, b, span, p")) {
             String text = el.text().trim();
             for (String label : ADDRESS_LABELS) {
-                if (text.contains(label) && text.length() < 20) {
+                if (!text.contains(label)) continue;
+                // 라벨이 별도 요소 (짧은 텍스트)인 경우: 형제/부모에서 주소 추출
+                if (text.length() < 20) {
                     Element sibling = el.nextElementSibling();
                     if (sibling != null) {
                         String addr = sibling.text().trim();
@@ -222,6 +224,15 @@ public class DetailPageEnricher {
                             String addr = content.text().trim();
                             if (addr.length() >= 5 && addr.length() <= 200) return addr;
                         }
+                    }
+                }
+                // 라벨과 주소가 같은 요소에 합쳐진 경우: "매장주소 : 서울 강남구..."
+                if (text.length() >= 10 && text.length() <= 200) {
+                    String afterLabel = text.substring(text.indexOf(label) + label.length())
+                            .replaceFirst("^\\s*:?\\s*", "").trim();
+                    if (afterLabel.length() >= 5 && afterLabel.length() <= 150
+                            && afterLabel.matches(".*(?:시|군|구|동|로|길|읍|면).*")) {
+                        return afterLabel;
                     }
                 }
             }

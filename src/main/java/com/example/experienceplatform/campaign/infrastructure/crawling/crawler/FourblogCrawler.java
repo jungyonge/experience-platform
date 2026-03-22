@@ -138,7 +138,21 @@ public class FourblogCrawler implements CampaignCrawler {
         Integer currentApplicants = DetailPageEnricher.extractCurrentApplicants(doc);
         LocalDate announcementDate = DetailPageEnricher.extractAnnouncementDate(doc);
         LocalDate applyStartDate = DetailPageEnricher.extractApplyStartDate(doc);
-        String address = DetailPageEnricher.extractAddress(doc);
+        // "체험 장소" 라벨에서 주소 추출 (campaigninfo-label + campaigninfo-text 구조)
+        String address = null;
+        for (Element label : doc.select("label.campaigninfo-label")) {
+            if (label.text().contains("체험") && label.text().contains("장소")) {
+                Element text = label.nextElementSibling();
+                if (text != null) {
+                    address = text.text().trim();
+                    if (address.length() < 3) address = null;
+                    break;
+                }
+            }
+        }
+        if (address == null) {
+            address = DetailPageEnricher.extractAddress(doc);
+        }
 
         return new CrawledCampaign(
                 campaign.getSourceCode(), campaign.getOriginalId(), campaign.getTitle(),

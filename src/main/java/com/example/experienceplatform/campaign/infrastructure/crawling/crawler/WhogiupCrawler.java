@@ -111,9 +111,47 @@ public class WhogiupCrawler implements CampaignCrawler {
             }
         }
 
+        enrichAddressFromApi(results);
         results = enricher.enrich(results, this::parseDetailPage);
         log.info("WHOGIUP 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private static final String DETAIL_API_URL = BASE_URL + "/api/details";
+
+    private void enrichAddressFromApi(List<CrawledCampaign> results) {
+        for (int i = 0; i < results.size(); i++) {
+            CrawledCampaign c = results.get(i);
+            if (c.getAddress() != null) continue;
+            try {
+                Thread.sleep(50);
+                String body = "{\"idx\":" + c.getOriginalId() + "}";
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(DETAIL_API_URL))
+                        .header("Content-Type", "application/json")
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .POST(HttpRequest.BodyPublishers.ofString(body))
+                        .build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    JsonNode root = objectMapper.readTree(response.body());
+                    JsonNode data = root.path("data");
+                    if (data.isMissingNode()) data = root;
+                    String addr = data.path("address").asText("").trim();
+                    if (!addr.isEmpty()) {
+                        results.set(i, new CrawledCampaign(
+                                c.getSourceCode(), c.getOriginalId(), c.getTitle(),
+                                c.getDescription(), c.getDetailContent(), c.getThumbnailUrl(), c.getOriginalUrl(),
+                                c.getCategory(), c.getStatus(), c.getRecruitCount(),
+                                c.getApplyStartDate(), c.getApplyEndDate(), c.getAnnouncementDate(),
+                                c.getReward(), c.getMission(), addr, c.getKeywords(), c.getCurrentApplicants()));
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("WHOGIUP 주소 API 호출 실패 {}: {}", c.getOriginalId(), e.getMessage());
+            }
+        }
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {

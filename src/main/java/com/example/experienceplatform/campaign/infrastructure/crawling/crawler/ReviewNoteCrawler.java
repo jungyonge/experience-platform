@@ -13,6 +13,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -32,6 +37,7 @@ public class ReviewNoteCrawler implements CampaignCrawler {
     private final CrawlingDelayHandler delayHandler;
     private final ObjectMapper objectMapper;
     private final DetailPageEnricher enricher;
+    private final HttpClient httpClient;
 
     public ReviewNoteCrawler(CrawlingProperties properties, JsoupClient jsoupClient,
                              RobotsTxtChecker robotsTxtChecker, CrawlingDelayHandler delayHandler,
@@ -42,6 +48,10 @@ public class ReviewNoteCrawler implements CampaignCrawler {
         this.delayHandler = delayHandler;
         this.objectMapper = objectMapper;
         this.enricher = enricher;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.getConnectionTimeoutMs()))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
     }
 
     @Override
@@ -97,9 +107,57 @@ public class ReviewNoteCrawler implements CampaignCrawler {
         }
 
         List<CrawledCampaign> results = new ArrayList<>(deduped.values());
+        enrichAddressFromApi(results);
         results = enricher.enrich(results, this::parseDetailPage);
         log.info("REVIEWNOTE 크롤링 완료: {}건", results.size());
         return results;
+    }
+
+    private static final String DETAIL_API_URL = BASE_URL + "/api/campaign";
+
+    private void enrichAddressFromApi(List<CrawledCampaign> results) {
+        String fidToken = properties.getReviewnoteFidToken();
+        String session = properties.getReviewnoteSession();
+        if (fidToken.isEmpty() || session.isEmpty()) {
+            log.debug("REVIEWNOTE 인증 토큰 미설정, 주소 enrichment 건너뜀");
+            return;
+        }
+        String cookie = "fidToken=" + fidToken + "; reviewNoteSession=" + session;
+
+        for (int i = 0; i < results.size(); i++) {
+            CrawledCampaign c = results.get(i);
+            if (c.getAddress() != null && c.getAddress().matches(".*(?:로|길|동)\\s*\\d+.*")) continue;
+            try {
+                Thread.sleep(50);
+                String url = DETAIL_API_URL + "?id=" + c.getOriginalId();
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .header("Accept", "application/json")
+                        .header("Cookie", cookie)
+                        .header("User-Agent", properties.getUserAgent())
+                        .timeout(Duration.ofMillis(properties.getReadTimeoutMs()))
+                        .GET()
+                        .build();
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    JsonNode root = objectMapper.readTree(response.body());
+                    JsonNode data = root.path("data");
+                    String addr1 = data.path("address1").asText("").trim();
+                    String addr2 = data.path("address2").asText("").trim();
+                    if (!addr1.isEmpty()) {
+                        String address = addr2.isEmpty() ? addr1 : addr1 + " " + addr2;
+                        results.set(i, new CrawledCampaign(
+                                c.getSourceCode(), c.getOriginalId(), c.getTitle(),
+                                c.getDescription(), c.getDetailContent(), c.getThumbnailUrl(), c.getOriginalUrl(),
+                                c.getCategory(), c.getStatus(), c.getRecruitCount(),
+                                c.getApplyStartDate(), c.getApplyEndDate(), c.getAnnouncementDate(),
+                                c.getReward(), c.getMission(), address, c.getKeywords(), c.getCurrentApplicants()));
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("REVIEWNOTE 주소 API 호출 실패 {}: {}", c.getOriginalId(), e.getMessage());
+            }
+        }
     }
 
     private CrawledCampaign parseDetailPage(CrawledCampaign campaign, Document doc) {

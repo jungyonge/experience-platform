@@ -23,6 +23,8 @@ public class CrawlingProperties {
     private int detailFetchDelayMs = 500;
     private int mockCount = 50;
     private int parallelThreads = 5;
+    private String reviewnoteFidToken = "";
+    private String reviewnoteSession = "";
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -56,4 +58,8 @@ public class CrawlingProperties {
     public void setMockCount(int mockCount) { this.mockCount = mockCount; }
     public int getParallelThreads() { return parallelThreads; }
     public void setParallelThreads(int parallelThreads) { this.parallelThreads = parallelThreads; }
+    public String getReviewnoteFidToken() { return reviewnoteFidToken; }
+    public void setReviewnoteFidToken(String reviewnoteFidToken) { this.reviewnoteFidToken = reviewnoteFidToken; }
+    public String getReviewnoteSession() { return reviewnoteSession; }
+    public void setReviewnoteSession(String reviewnoteSession) { this.reviewnoteSession = reviewnoteSession; }
 }
