@@ -40,8 +40,16 @@ public class CampaignService {
             }
         }
 
+        String region = command.getRegion();
+        if (region != null) {
+            region = region.trim();
+            if (region.isEmpty()) {
+                region = null;
+            }
+        }
+
         CampaignSearchCondition condition = new CampaignSearchCondition(
-                keyword, sourceCodes, categories, status);
+                keyword, sourceCodes, categories, status, region);
 
         Sort sort = resolveSort(command.getSort());
         Pageable pageable = PageRequest.of(command.getPage(), command.getSize(), sort);

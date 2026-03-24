@@ -15,6 +15,7 @@ public class CampaignSearchRequest {
     private String sourceTypes;
     private String categories;
     private String status;
+    private String region;
     private int page = 0;
     private int size = 12;
     private String sort = "latest";
@@ -37,6 +38,7 @@ public class CampaignSearchRequest {
                 parseCommaSeparated(sourceTypes),
                 parseCommaSeparated(categories),
                 status,
+                region,
                 page,
                 size,
                 sort
@@ -65,6 +67,8 @@ public class CampaignSearchRequest {
     public void setPage(int page) { this.page = page; }
     public int getSize() { return size; }
     public void setSize(int size) { this.size = size; }
+    public String getRegion() { return region; }
+    public void setRegion(String region) { this.region = region; }
     public String getSort() { return sort; }
     public void setSort(String sort) { this.sort = sort; }
 }

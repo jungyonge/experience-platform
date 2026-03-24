@@ -33,6 +33,12 @@ public final class CampaignSpecification {
                     cb.equal(root.get("status"), condition.getStatus()));
         }
 
+        if (condition.getRegion() != null && !condition.getRegion().isBlank()) {
+            String region = condition.getRegion().trim();
+            spec = spec.and((root, query, cb) ->
+                    cb.like(root.get("address"), region + "%"));
+        }
+
         return spec;
     }
 }

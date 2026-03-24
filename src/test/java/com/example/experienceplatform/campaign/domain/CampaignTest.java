@@ -80,11 +80,12 @@ class CampaignTest {
     @Test
     @DisplayName("CampaignSearchCondition 빈 조건 생성")
     void searchCondition_empty() {
-        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null);
+        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null, null);
 
         assertThat(condition.getKeyword()).isNull();
         assertThat(condition.getSourceCodes()).isNull();
         assertThat(condition.getCategories()).isNull();
         assertThat(condition.getStatus()).isNull();
+        assertThat(condition.getRegion()).isNull();
     }
 }

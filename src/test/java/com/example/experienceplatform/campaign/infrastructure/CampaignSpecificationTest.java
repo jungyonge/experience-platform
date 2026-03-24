@@ -60,7 +60,7 @@ class CampaignSpecificationTest {
     @Test
     @DisplayName("조건 없으면 전체 조회")
     void noCondition_returnsAll() {
-        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null);
+        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec, PageRequest.of(0, 10));
@@ -71,7 +71,7 @@ class CampaignSpecificationTest {
     @Test
     @DisplayName("키워드 검색 - 대소문자 무시")
     void keyword_caseInsensitive() {
-        CampaignSearchCondition condition = new CampaignSearchCondition("맛집", null, null, null);
+        CampaignSearchCondition condition = new CampaignSearchCondition("맛집", null, null, null, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec, PageRequest.of(0, 10));
@@ -84,7 +84,7 @@ class CampaignSpecificationTest {
     @DisplayName("소스 필터 - IN 조건")
     void sourceTypeFilter() {
         CampaignSearchCondition condition = new CampaignSearchCondition(
-                null, Set.of("REVU"), null, null);
+                null, Set.of("REVU"), null, null, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec, PageRequest.of(0, 10));
@@ -97,7 +97,7 @@ class CampaignSpecificationTest {
     @DisplayName("카테고리 필터 - IN 조건")
     void categoryFilter() {
         CampaignSearchCondition condition = new CampaignSearchCondition(
-                null, null, Set.of(CampaignCategory.FOOD), null);
+                null, null, Set.of(CampaignCategory.FOOD), null, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec, PageRequest.of(0, 10));
@@ -110,7 +110,7 @@ class CampaignSpecificationTest {
     @DisplayName("상태 필터 - 동등 조건")
     void statusFilter() {
         CampaignSearchCondition condition = new CampaignSearchCondition(
-                null, null, null, CampaignStatus.CLOSED);
+                null, null, null, CampaignStatus.CLOSED, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec, PageRequest.of(0, 10));
@@ -123,7 +123,7 @@ class CampaignSpecificationTest {
     @DisplayName("복합 조건 - 소스 + 카테고리 + 상태")
     void compositeFilter() {
         CampaignSearchCondition condition = new CampaignSearchCondition(
-                null, Set.of("REVU"), Set.of(CampaignCategory.FOOD), CampaignStatus.RECRUITING);
+                null, Set.of("REVU"), Set.of(CampaignCategory.FOOD), CampaignStatus.RECRUITING, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec, PageRequest.of(0, 10));
@@ -135,7 +135,7 @@ class CampaignSpecificationTest {
     @Test
     @DisplayName("페이징 동작")
     void paging() {
-        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null);
+        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> page1 = repository.findAll(spec, PageRequest.of(0, 2));
@@ -149,7 +149,7 @@ class CampaignSpecificationTest {
     @Test
     @DisplayName("정렬 - 마감일 ASC")
     void sorting_deadline() {
-        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null);
+        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null, null);
         Specification<Campaign> spec = CampaignSpecification.withCondition(condition);
 
         Page<Campaign> result = repository.findAll(spec,

@@ -8,17 +8,20 @@ public class CampaignSearchCommand {
     private final Set<String> sourceTypes;
     private final Set<String> categories;
     private final String status;
+    private final String region;
     private final int page;
     private final int size;
     private final String sort;
 
     public CampaignSearchCommand(String keyword, Set<String> sourceTypes,
                                  Set<String> categories, String status,
+                                 String region,
                                  int page, int size, String sort) {
         this.keyword = keyword;
         this.sourceTypes = sourceTypes;
         this.categories = categories;
         this.status = status;
+        this.region = region;
         this.page = page;
         this.size = size;
         this.sort = sort;
@@ -38,6 +41,10 @@ public class CampaignSearchCommand {
 
     public String getStatus() {
         return status;
+    }
+
+    public String getRegion() {
+        return region;
     }
 
     public int getPage() {

@@ -58,6 +58,7 @@ export interface FilterOptionsResponse {
   categories: FilterOption[]
   statuses: FilterOption[]
   sortOptions: FilterOption[]
+  regions: FilterOption[]
 }
 
 export interface CampaignSearchParams {
@@ -65,6 +66,7 @@ export interface CampaignSearchParams {
   sourceTypes?: string[]
   categories?: string[]
   status?: string
+  region?: string
   page: number
   size: number
   sort: string

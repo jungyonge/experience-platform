@@ -25,6 +25,7 @@ export function useCampaignSearch() {
   const sourceTypes = parseSet(searchParams.get('sourceTypes'))
   const categories = parseSet(searchParams.get('categories'))
   const status = searchParams.get('status') || ''
+  const region = searchParams.get('region') || ''
   const page = Number(searchParams.get('page') || '0')
   const size = Number(searchParams.get('size') || '12')
   const sort = searchParams.get('sort') || 'latest'
@@ -63,6 +64,7 @@ export function useCampaignSearch() {
       sourceTypes: sourceTypes.length > 0 ? sourceTypes : undefined,
       categories: categories.length > 0 ? categories : undefined,
       status: status || undefined,
+      region: region || undefined,
       page,
       size,
       sort,
@@ -92,7 +94,7 @@ export function useCampaignSearch() {
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedKeyword, sourceTypes.join(','), categories.join(','), status, page, size, sort])
+  }, [debouncedKeyword, sourceTypes.join(','), categories.join(','), status, region, page, size, sort])
 
   const updateParams = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -157,6 +159,13 @@ export function useCampaignSearch() {
     [updateParams]
   )
 
+  const setRegion = useCallback(
+    (value: string) => {
+      updateParams({ region: value || undefined, page: '0' })
+    },
+    [updateParams]
+  )
+
   const setSort = useCallback(
     (value: string) => {
       updateParams({ sort: value, page: '0' })
@@ -181,12 +190,14 @@ export function useCampaignSearch() {
     sourceTypes,
     categories,
     status,
+    region,
     page,
     sort,
     setKeyword,
     toggleSourceType,
     toggleCategory,
     setStatus,
+    setRegion,
     setSort,
     setPage,
     resetFilters,

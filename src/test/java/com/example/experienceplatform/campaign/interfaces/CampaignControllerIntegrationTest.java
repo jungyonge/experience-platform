@@ -81,7 +81,8 @@ class CampaignControllerIntegrationTest {
                 .andExpect(jsonPath("$.statuses").isArray())
                 .andExpect(jsonPath("$.sortOptions").isArray())
                 .andExpect(jsonPath("$.sourceTypes[0].code").value("REVU"))
-                .andExpect(jsonPath("$.statuses").value(org.hamcrest.Matchers.hasSize(2)));
+                .andExpect(jsonPath("$.statuses").value(org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$.regions").isArray());
     }
 
     @Test

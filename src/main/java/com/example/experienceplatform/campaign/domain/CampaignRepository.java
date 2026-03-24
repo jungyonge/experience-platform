@@ -20,4 +20,6 @@ public interface CampaignRepository {
     List<Campaign> findExpiredRecruitingCampaigns(LocalDate today);
 
     long countByCrawlingSource(CrawlingSource crawlingSource);
+
+    List<String> findDistinctRegions();
 }

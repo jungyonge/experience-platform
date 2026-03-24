@@ -18,10 +18,12 @@ export default function HomePage() {
     sourceTypes,
     categories,
     status,
+    region,
     sort,
     toggleSourceType,
     toggleCategory,
     setStatus,
+    setRegion,
     setSort,
     setPage,
     resetFilters,
@@ -38,10 +40,12 @@ export default function HomePage() {
           selectedSourceTypes={sourceTypes}
           selectedCategories={categories}
           selectedStatus={status}
+          selectedRegion={region}
           selectedSort={sort}
           onToggleSourceType={toggleSourceType}
           onToggleCategory={toggleCategory}
           onSetStatus={setStatus}
+          onSetRegion={setRegion}
           onSetSort={setSort}
         />
       )}

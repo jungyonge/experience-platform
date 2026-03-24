@@ -14,16 +14,20 @@ public class FilterOptionResponse {
     private final List<Option> categories;
     private final List<Option> statuses;
     private final List<Option> sortOptions;
+    private final List<Option> regions;
 
     private FilterOptionResponse(List<Option> sourceTypes, List<Option> categories,
-                                 List<Option> statuses, List<Option> sortOptions) {
+                                 List<Option> statuses, List<Option> sortOptions,
+                                 List<Option> regions) {
         this.sourceTypes = sourceTypes;
         this.categories = categories;
         this.statuses = statuses;
         this.sortOptions = sortOptions;
+        this.regions = regions;
     }
 
-    public static FilterOptionResponse create(List<CrawlingSource> activeSources) {
+    public static FilterOptionResponse create(List<CrawlingSource> activeSources,
+                                              List<String> regionValues) {
         Set<CampaignStatus> visibleStatuses = Set.of(
                 CampaignStatus.RECRUITING, CampaignStatus.CLOSED);
 
@@ -46,13 +50,18 @@ public class FilterOptionResponse {
                 new Option("popular", "모집인원순")
         );
 
-        return new FilterOptionResponse(sources, categories, statuses, sortOptions);
+        List<Option> regions = regionValues.stream()
+                .map(r -> new Option(r, r))
+                .toList();
+
+        return new FilterOptionResponse(sources, categories, statuses, sortOptions, regions);
     }
 
     public List<Option> getSourceTypes() { return sourceTypes; }
     public List<Option> getCategories() { return categories; }
     public List<Option> getStatuses() { return statuses; }
     public List<Option> getSortOptions() { return sortOptions; }
+    public List<Option> getRegions() { return regions; }
 
     public static class Option {
         private final String code;
