@@ -33,10 +33,13 @@ public final class CampaignSpecification {
                     cb.equal(root.get("status"), condition.getStatus()));
         }
 
-        if (condition.getRegion() != null && !condition.getRegion().isBlank()) {
-            String region = condition.getRegion().trim();
+        if (condition.getRegionId() != null) {
             spec = spec.and((root, query, cb) ->
-                    cb.like(root.get("address"), region + "%"));
+                    cb.equal(root.get("region").get("id"), condition.getRegionId()));
+        } else if (condition.getSido() != null && !condition.getSido().isBlank()) {
+            String sido = condition.getSido().trim();
+            spec = spec.and((root, query, cb) ->
+                    cb.equal(root.get("region").get("sido"), sido));
         }
 
         return spec;

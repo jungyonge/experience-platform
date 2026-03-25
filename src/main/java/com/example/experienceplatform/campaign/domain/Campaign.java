@@ -67,6 +67,10 @@ public class Campaign {
     @Column(length = 300)
     private String address;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "region_id")
+    private Region region;
+
     @Column(length = 500)
     private String keywords;
 
@@ -86,18 +90,9 @@ public class Campaign {
                     CampaignCategory category, CampaignStatus status,
                     Integer recruitCount, LocalDate applyStartDate,
                     LocalDate applyEndDate, LocalDate announcementDate) {
-        this.crawlingSource = crawlingSource;
-        this.originalId = originalId;
-        this.title = title;
-        this.description = description;
-        this.thumbnailUrl = thumbnailUrl;
-        this.originalUrl = originalUrl;
-        this.category = category;
-        this.status = status;
-        this.recruitCount = recruitCount;
-        this.applyStartDate = applyStartDate;
-        this.applyEndDate = applyEndDate;
-        this.announcementDate = announcementDate;
+        this(crawlingSource, originalId, title, description, thumbnailUrl, originalUrl,
+                category, status, recruitCount, applyStartDate, applyEndDate, announcementDate,
+                null, null, null, null, null, null, null);
     }
 
     public Campaign(CrawlingSource crawlingSource, String originalId, String title,
@@ -109,7 +104,7 @@ public class Campaign {
                     String address, String keywords) {
         this(crawlingSource, originalId, title, description, thumbnailUrl, originalUrl,
                 category, status, recruitCount, applyStartDate, applyEndDate, announcementDate,
-                detailContent, reward, mission, address, keywords, null);
+                detailContent, reward, mission, address, keywords, null, null);
     }
 
     public Campaign(CrawlingSource crawlingSource, String originalId, String title,
@@ -119,6 +114,19 @@ public class Campaign {
                     LocalDate applyEndDate, LocalDate announcementDate,
                     String detailContent, String reward, String mission,
                     String address, String keywords, Integer currentApplicants) {
+        this(crawlingSource, originalId, title, description, thumbnailUrl, originalUrl,
+                category, status, recruitCount, applyStartDate, applyEndDate, announcementDate,
+                detailContent, reward, mission, address, keywords, currentApplicants, null);
+    }
+
+    public Campaign(CrawlingSource crawlingSource, String originalId, String title,
+                    String description, String thumbnailUrl, String originalUrl,
+                    CampaignCategory category, CampaignStatus status,
+                    Integer recruitCount, LocalDate applyStartDate,
+                    LocalDate applyEndDate, LocalDate announcementDate,
+                    String detailContent, String reward, String mission,
+                    String address, String keywords, Integer currentApplicants,
+                    Region region) {
         this.crawlingSource = crawlingSource;
         this.originalId = originalId;
         this.title = title;
@@ -137,6 +145,7 @@ public class Campaign {
         this.address = address;
         this.keywords = keywords;
         this.currentApplicants = currentApplicants;
+        this.region = region;
     }
 
     @PrePersist
@@ -156,7 +165,8 @@ public class Campaign {
                        LocalDate applyStartDate, LocalDate applyEndDate,
                        LocalDate announcementDate, String detailContent,
                        String reward, String mission, String address,
-                       String keywords, Integer currentApplicants) {
+                       String keywords, Integer currentApplicants,
+                       Region region) {
         this.title = title;
         this.description = description;
         this.thumbnailUrl = thumbnailUrl;
@@ -173,6 +183,7 @@ public class Campaign {
         this.address = address;
         this.keywords = keywords;
         this.currentApplicants = currentApplicants;
+        this.region = region;
     }
 
     public String getSourceCode() {
@@ -210,6 +221,7 @@ public class Campaign {
     public String getReward() { return reward; }
     public String getMission() { return mission; }
     public String getAddress() { return address; }
+    public Region getRegion() { return region; }
     public String getKeywords() { return keywords; }
     public Integer getCurrentApplicants() { return currentApplicants; }
     public LocalDateTime getCreatedAt() { return createdAt; }

@@ -35,6 +35,9 @@ class CrawlingOrchestratorSourceTest {
     @Mock
     private CrawlingProperties crawlingProperties;
 
+    @Mock
+    private AddressRegionMatcher addressRegionMatcher;
+
     private static final CrawlingSource REVU_SOURCE =
             new CrawlingSource("REVU", "레뷰", "https://www.revu.net", null, null, "REVU", 1);
     private static final CrawlingSource GANGNAM_SOURCE =
@@ -58,7 +61,7 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler));
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
         orchestrator.initExecutor();
 
         List<CrawlingResult> results = orchestrator.executeAll();
@@ -83,7 +86,7 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(gangnamCrawler));
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
         orchestrator.initExecutor();
 
         List<CrawlingResult> results = orchestrator.executeAll();
@@ -110,7 +113,7 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(revuCrawler));
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
 
         CrawlingResult result = orchestrator.executeBySourceCode("REVU");
 
@@ -125,7 +128,7 @@ class CrawlingOrchestratorSourceTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of());
         CrawlingOrchestrator orchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
 
         assertThatThrownBy(() -> orchestrator.executeBySourceCode("NONEXIST"))
                 .isInstanceOf(CrawlingSourceNotFoundException.class);

@@ -36,6 +36,9 @@ class CrawlingOrchestratorTest {
     private CrawlingProperties crawlingProperties;
 
     @Mock
+    private AddressRegionMatcher addressRegionMatcher;
+
+    @Mock
     private CampaignCrawler mockCrawler;
 
     private static final CrawlingSource REVU_SOURCE =
@@ -46,6 +49,7 @@ class CrawlingOrchestratorTest {
     @BeforeEach
     void setUp() {
         when(crawlingProperties.getParallelThreads()).thenReturn(5);
+        lenient().when(addressRegionMatcher.match(any())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -62,7 +66,7 @@ class CrawlingOrchestratorTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(mockCrawler));
         CrawlingOrchestrator testOrchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
         testOrchestrator.initExecutor();
 
         List<CrawlingResult> results = testOrchestrator.executeAll();
@@ -91,7 +95,7 @@ class CrawlingOrchestratorTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(mockCrawler));
         CrawlingOrchestrator testOrchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
         testOrchestrator.initExecutor();
 
         List<CrawlingResult> results = testOrchestrator.executeAll();
@@ -116,7 +120,7 @@ class CrawlingOrchestratorTest {
 
         CrawlerRegistry registry = new CrawlerRegistry(List.of(failCrawler, successCrawler));
         CrawlingOrchestrator testOrchestrator = new CrawlingOrchestrator(
-                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties);
+                registry, campaignRepository, crawlingSourceRepository, crawlingLogRepository, crawlingProperties, addressRegionMatcher);
         testOrchestrator.initExecutor();
 
         List<CrawlingResult> results = testOrchestrator.executeAll();

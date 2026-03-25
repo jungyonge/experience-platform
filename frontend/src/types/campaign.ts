@@ -53,12 +53,17 @@ export interface FilterOption {
   name: string
 }
 
+export interface RegionGroup {
+  sido: string
+  sigungus: FilterOption[]
+}
+
 export interface FilterOptionsResponse {
   sourceTypes: FilterOption[]
   categories: FilterOption[]
   statuses: FilterOption[]
   sortOptions: FilterOption[]
-  regions: FilterOption[]
+  regions: RegionGroup[]
 }
 
 export interface CampaignSearchParams {
@@ -66,7 +71,8 @@ export interface CampaignSearchParams {
   sourceTypes?: string[]
   categories?: string[]
   status?: string
-  region?: string
+  regionId?: number
+  sido?: string
   page: number
   size: number
   sort: string

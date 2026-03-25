@@ -48,22 +48,4 @@ public class CampaignJpaRepository implements CampaignRepository {
         return springDataRepository.countByCrawlingSource(crawlingSource);
     }
 
-    @Override
-    public List<String> findDistinctRegions() {
-        return springDataRepository.findDistinctAddresses().stream()
-                .map(CampaignJpaRepository::extractRegion)
-                .filter(r -> r != null && !r.isBlank())
-                .distinct()
-                .sorted()
-                .toList();
-    }
-
-    private static String extractRegion(String address) {
-        if (address == null || address.isBlank()) return null;
-        String[] parts = address.trim().split("\\s+");
-        if (parts.length >= 2) {
-            return parts[0] + " " + parts[1];
-        }
-        return parts[0];
-    }
 }

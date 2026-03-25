@@ -99,7 +99,7 @@ class CampaignDetailTest {
                 10, LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30),
                 LocalDate.of(2026, 5, 5),
                 "수정된 상세 설명", "수정된 제공내역", "수정된 미션",
-                "수정된 주소", "수정키워드1,수정키워드2", null);
+                "수정된 주소", "수정키워드1,수정키워드2", null, null);
 
         assertThat(campaign.getTitle()).isEqualTo("수정된 제목");
         assertThat(campaign.getDetailContent()).isEqualTo("수정된 상세 설명");

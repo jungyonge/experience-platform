@@ -47,7 +47,7 @@ class CampaignTest {
                 CampaignCategory.BEAUTY, CampaignStatus.CLOSED,
                 10, LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30),
                 LocalDate.of(2026, 5, 5),
-                null, null, null, null, null, null);
+                null, null, null, null, null, null, null);
 
         assertThat(campaign.getTitle()).isEqualTo("수정된 제목");
         assertThat(campaign.getDescription()).isEqualTo("수정된 설명");
@@ -80,12 +80,13 @@ class CampaignTest {
     @Test
     @DisplayName("CampaignSearchCondition 빈 조건 생성")
     void searchCondition_empty() {
-        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null, null);
+        CampaignSearchCondition condition = new CampaignSearchCondition(null, null, null, null, null, null);
 
         assertThat(condition.getKeyword()).isNull();
         assertThat(condition.getSourceCodes()).isNull();
         assertThat(condition.getCategories()).isNull();
         assertThat(condition.getStatus()).isNull();
-        assertThat(condition.getRegion()).isNull();
+        assertThat(condition.getRegionId()).isNull();
+        assertThat(condition.getSido()).isNull();
     }
 }

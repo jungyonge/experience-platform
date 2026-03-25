@@ -19,7 +19,7 @@ describe('useCampaignFilters', () => {
       categories: [{ code: 'FOOD', name: '맛집' }],
       statuses: [{ code: 'RECRUITING', name: '모집중' }],
       sortOptions: [{ code: 'latest', name: '최신순' }],
-      regions: [{ code: '서울 강남구', name: '서울 강남구' }],
+      regions: [{ sido: '서울특별시', sigungus: [{ code: '1', name: '강남구' }] }],
     }
     vi.mocked(fetchFilterOptions).mockResolvedValue(mockFilters)
 

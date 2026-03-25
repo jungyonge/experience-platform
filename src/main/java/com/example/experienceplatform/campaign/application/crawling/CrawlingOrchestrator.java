@@ -3,6 +3,7 @@ package com.example.experienceplatform.campaign.application.crawling;
 import com.example.experienceplatform.campaign.domain.*;
 import com.example.experienceplatform.campaign.domain.exception.CrawlingSourceNotFoundException;
 import com.example.experienceplatform.campaign.infrastructure.crawling.*;
+import com.example.experienceplatform.campaign.infrastructure.crawling.AddressRegionMatcher;
 import com.example.experienceplatform.campaign.infrastructure.crawling.log.CrawlingLog;
 import com.example.experienceplatform.campaign.infrastructure.crawling.log.CrawlingLogRepository;
 import com.example.experienceplatform.campaign.infrastructure.crawling.log.CrawlingLogStatus;
@@ -32,6 +33,7 @@ public class CrawlingOrchestrator {
     private final CrawlingSourceRepository crawlingSourceRepository;
     private final CrawlingLogRepository crawlingLogRepository;
     private final CrawlingProperties crawlingProperties;
+    private final AddressRegionMatcher addressRegionMatcher;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private ExecutorService crawlingExecutor;
 
@@ -39,12 +41,14 @@ public class CrawlingOrchestrator {
                                 CampaignRepository campaignRepository,
                                 CrawlingSourceRepository crawlingSourceRepository,
                                 CrawlingLogRepository crawlingLogRepository,
-                                CrawlingProperties crawlingProperties) {
+                                CrawlingProperties crawlingProperties,
+                                AddressRegionMatcher addressRegionMatcher) {
         this.crawlerRegistry = crawlerRegistry;
         this.campaignRepository = campaignRepository;
         this.crawlingSourceRepository = crawlingSourceRepository;
         this.crawlingLogRepository = crawlingLogRepository;
         this.crawlingProperties = crawlingProperties;
+        this.addressRegionMatcher = addressRegionMatcher;
     }
 
     @PostConstruct
@@ -158,6 +162,7 @@ public class CrawlingOrchestrator {
     @Transactional
     protected boolean upsert(CrawledCampaign item, CrawlingSource source) {
         var existing = campaignRepository.findByCrawlingSourceAndOriginalId(source, item.getOriginalId());
+        Region region = addressRegionMatcher.match(item.getAddress()).orElse(null);
 
         if (existing.isPresent()) {
             Campaign campaign = existing.get();
@@ -167,7 +172,7 @@ public class CrawlingOrchestrator {
                     item.getRecruitCount(), item.getApplyStartDate(), item.getApplyEndDate(),
                     item.getAnnouncementDate(), item.getDetailContent(), item.getReward(),
                     item.getMission(), item.getAddress(), item.getKeywords(),
-                    item.getCurrentApplicants());
+                    item.getCurrentApplicants(), region);
             campaignRepository.save(campaign);
             return false;
         } else {
@@ -177,7 +182,8 @@ public class CrawlingOrchestrator {
                     item.getCategory(), item.getStatus(), item.getRecruitCount(),
                     item.getApplyStartDate(), item.getApplyEndDate(), item.getAnnouncementDate(),
                     item.getDetailContent(), item.getReward(), item.getMission(),
-                    item.getAddress(), item.getKeywords(), item.getCurrentApplicants());
+                    item.getAddress(), item.getKeywords(), item.getCurrentApplicants(),
+                    region);
             try {
                 campaignRepository.save(campaign);
             } catch (DataIntegrityViolationException e) {
@@ -198,7 +204,7 @@ public class CrawlingOrchestrator {
                     campaign.getRecruitCount(), campaign.getApplyStartDate(), campaign.getApplyEndDate(),
                     campaign.getAnnouncementDate(), campaign.getDetailContent(), campaign.getReward(),
                     campaign.getMission(), campaign.getAddress(), campaign.getKeywords(),
-                    campaign.getCurrentApplicants());
+                    campaign.getCurrentApplicants(), campaign.getRegion());
             campaignRepository.save(campaign);
         }
         if (!expired.isEmpty()) {

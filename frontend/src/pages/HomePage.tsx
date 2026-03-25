@@ -18,7 +18,8 @@ export default function HomePage() {
     sourceTypes,
     categories,
     status,
-    region,
+    regionId,
+    sido,
     sort,
     toggleSourceType,
     toggleCategory,
@@ -40,7 +41,8 @@ export default function HomePage() {
           selectedSourceTypes={sourceTypes}
           selectedCategories={categories}
           selectedStatus={status}
-          selectedRegion={region}
+          selectedRegionId={regionId}
+          selectedSido={sido}
           selectedSort={sort}
           onToggleSourceType={toggleSourceType}
           onToggleCategory={toggleCategory}

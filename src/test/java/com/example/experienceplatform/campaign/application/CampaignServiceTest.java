@@ -47,7 +47,7 @@ class CampaignServiceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(page);
 
         CampaignListInfo result = campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, null, null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, null, null, null, null, null, 0, 12, "latest"));
 
         assertThat(result.getCampaigns()).hasSize(1);
         assertThat(result.getTotalCount()).isEqualTo(1);
@@ -61,7 +61,7 @@ class CampaignServiceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand("맛집", null, null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand("맛집", null, null, null, null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond -> "맛집".equals(cond.getKeyword())),
@@ -75,7 +75,7 @@ class CampaignServiceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, Set.of("REVU"), Set.of("FOOD"), "RECRUITING", null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, Set.of("REVU"), Set.of("FOOD"), "RECRUITING", null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond ->
@@ -92,7 +92,7 @@ class CampaignServiceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, Set.of("INVALID_SOURCE"), Set.of("INVALID_CAT"), "INVALID_STATUS", null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, Set.of("INVALID_SOURCE"), Set.of("INVALID_CAT"), "INVALID_STATUS", null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond ->
@@ -109,7 +109,7 @@ class CampaignServiceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand("  ", null, null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand("  ", null, null, null, null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond -> cond.getKeyword() == null),
@@ -124,7 +124,7 @@ class CampaignServiceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(page);
 
         CampaignListInfo result = campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, null, null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, null, null, null, null, null, 0, 12, "latest"));
 
         CampaignSummary summary = result.getCampaigns().get(0);
         assertThat(summary.getSourceType()).isEqualTo("GANGNAM");

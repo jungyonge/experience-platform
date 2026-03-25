@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import FilterChip from '@/components/FilterChip'
 import type { FilterOptionsResponse } from '@/types/campaign'
 
@@ -7,12 +6,13 @@ interface FilterBarProps {
   selectedSourceTypes: string[]
   selectedCategories: string[]
   selectedStatus: string
-  selectedRegion: string
+  selectedRegionId: string
+  selectedSido: string
   selectedSort: string
   onToggleSourceType: (code: string) => void
   onToggleCategory: (code: string) => void
   onSetStatus: (code: string) => void
-  onSetRegion: (value: string) => void
+  onSetRegion: (regionId: string, sido: string) => void
   onSetSort: (code: string) => void
 }
 
@@ -21,7 +21,8 @@ export default function FilterBar({
   selectedSourceTypes,
   selectedCategories,
   selectedStatus,
-  selectedRegion,
+  selectedRegionId,
+  selectedSido,
   selectedSort,
   onToggleSourceType,
   onToggleCategory,
@@ -29,24 +30,10 @@ export default function FilterBar({
   onSetRegion,
   onSetSort,
 }: FilterBarProps) {
-  const regionMap = useMemo(() => {
-    const map = new Map<string, string[]>()
-    for (const r of filters.regions) {
-      const parts = r.code.split(' ')
-      const sido = parts[0]
-      const gugun = parts.length > 1 ? parts.slice(1).join(' ') : null
-      if (!map.has(sido)) map.set(sido, [])
-      if (gugun) map.get(sido)!.push(gugun)
-    }
-    return map
-  }, [filters.regions])
-
-  const selectedSido = selectedRegion ? selectedRegion.split(' ')[0] : ''
-  const selectedGugun = selectedRegion && selectedRegion.includes(' ')
-    ? selectedRegion.split(' ').slice(1).join(' ')
-    : ''
-
-  const guguns = selectedSido ? (regionMap.get(selectedSido) || []) : []
+  const selectedGroup = selectedSido
+    ? filters.regions.find((g) => g.sido === selectedSido)
+    : null
+  const sigungus = selectedGroup?.sigungus || []
 
   return (
     <div className="space-y-3 py-4">
@@ -102,30 +89,30 @@ export default function FilterBar({
             value={selectedSido}
             onChange={(e) => {
               const sido = e.target.value
-              onSetRegion(sido)
+              onSetRegion('', sido)
             }}
             className="text-sm border border-gray-200 rounded-md px-3 py-1.5 bg-white"
           >
             <option value="">전체</option>
-            {Array.from(regionMap.keys()).map((sido) => (
-              <option key={sido} value={sido}>
-                {sido}
+            {filters.regions.map((g) => (
+              <option key={g.sido} value={g.sido}>
+                {g.sido}
               </option>
             ))}
           </select>
-          {selectedSido && guguns.length > 0 && (
+          {selectedSido && sigungus.length > 0 && (
             <select
-              value={selectedGugun}
+              value={selectedRegionId}
               onChange={(e) => {
-                const gugun = e.target.value
-                onSetRegion(gugun ? `${selectedSido} ${gugun}` : selectedSido)
+                const regionId = e.target.value
+                onSetRegion(regionId, selectedSido)
               }}
               className="text-sm border border-gray-200 rounded-md px-3 py-1.5 bg-white"
             >
               <option value="">전체 {selectedSido}</option>
-              {guguns.map((g) => (
-                <option key={g} value={g}>
-                  {g}
+              {sigungus.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name}
                 </option>
               ))}
             </select>

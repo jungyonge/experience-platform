@@ -44,7 +44,7 @@ class CampaignServiceSourceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(page);
 
         CampaignListInfo result = campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, Set.of("REVU"), null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, Set.of("REVU"), null, null, null, null, 0, 12, "latest"));
 
         assertThat(result.getCampaigns()).hasSize(1);
         assertThat(result.getCampaigns().get(0).getSourceType()).isEqualTo("REVU");
@@ -61,7 +61,7 @@ class CampaignServiceSourceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, Set.of("REVU", "GANGNAM"), null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, Set.of("REVU", "GANGNAM"), null, null, null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond ->
@@ -77,7 +77,7 @@ class CampaignServiceSourceTest {
         when(campaignRepository.searchByCondition(any(), any(Pageable.class))).thenReturn(emptyPage);
 
         campaignService.searchCampaigns(
-                new CampaignSearchCommand(null, null, null, null, null, 0, 12, "latest"));
+                new CampaignSearchCommand(null, null, null, null, null, null, 0, 12, "latest"));
 
         verify(campaignRepository).searchByCondition(
                 argThat(cond -> cond.getSourceCodes() != null && cond.getSourceCodes().isEmpty()),

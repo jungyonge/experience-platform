@@ -40,16 +40,16 @@ public class CampaignService {
             }
         }
 
-        String region = command.getRegion();
-        if (region != null) {
-            region = region.trim();
-            if (region.isEmpty()) {
-                region = null;
+        String sido = command.getSido();
+        if (sido != null) {
+            sido = sido.trim();
+            if (sido.isEmpty()) {
+                sido = null;
             }
         }
 
         CampaignSearchCondition condition = new CampaignSearchCondition(
-                keyword, sourceCodes, categories, status, region);
+                keyword, sourceCodes, categories, status, command.getRegionId(), sido);
 
         Sort sort = resolveSort(command.getSort());
         Pageable pageable = PageRequest.of(command.getPage(), command.getSize(), sort);

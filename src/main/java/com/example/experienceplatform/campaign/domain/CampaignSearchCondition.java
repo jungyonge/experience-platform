@@ -8,16 +8,18 @@ public class CampaignSearchCondition {
     private final Set<String> sourceCodes;
     private final Set<CampaignCategory> categories;
     private final CampaignStatus status;
-    private final String region;
+    private final Long regionId;
+    private final String sido;
 
     public CampaignSearchCondition(String keyword, Set<String> sourceCodes,
                                    Set<CampaignCategory> categories, CampaignStatus status,
-                                   String region) {
+                                   Long regionId, String sido) {
         this.keyword = keyword;
         this.sourceCodes = sourceCodes;
         this.categories = categories;
         this.status = status;
-        this.region = region;
+        this.regionId = regionId;
+        this.sido = sido;
     }
 
     public String getKeyword() {
@@ -36,7 +38,11 @@ public class CampaignSearchCondition {
         return status;
     }
 
-    public String getRegion() {
-        return region;
+    public Long getRegionId() {
+        return regionId;
+    }
+
+    public String getSido() {
+        return sido;
     }
 }

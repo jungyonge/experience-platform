@@ -12,7 +12,8 @@ export async function fetchCampaigns(params: CampaignSearchParams): Promise<Camp
     query.set('categories', params.categories.join(','))
   }
   if (params.status) query.set('status', params.status)
-  if (params.region) query.set('region', params.region)
+  if (params.regionId) query.set('regionId', String(params.regionId))
+  if (params.sido) query.set('sido', params.sido)
   query.set('page', String(params.page))
   query.set('size', String(params.size))
   query.set('sort', params.sort)
